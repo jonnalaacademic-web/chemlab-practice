@@ -336,7 +336,30 @@ table.data th { background: var(--sunk); font-weight: 600; }
 .lock-btn:disabled { opacity: 0.6; cursor: default; }
 .lock-err { color: var(--miss); min-height: 1.4em; margin: 10px 0 0; font-size: 0.9rem; }
 .lock-note { color: var(--muted); font-size: 0.8rem; margin: 14px 0 0; }
+/* Lab tasks: experiments */
+.labseg { align-self: flex-start; }
+.xsheet { padding: 0; }
+.xsheet > summary { list-style: none; cursor: pointer; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px; }
+.xsheet > summary::-webkit-details-marker { display: none; }
+.xsheet .xtoggle { flex: none; font-size: 0.8rem; font-weight: 600; color: var(--accent); white-space: nowrap; padding-top: 2px; }
+.xsheet .xtoggle::after { content: "Hide sheet"; }
+.xsheet:not([open]) .xtoggle::after { content: "Show sheet"; }
+.xsheet .xbody { padding: 0 18px 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+.xsheet .flabel { margin-top: 12px; }
+.xsheet .xbody > .flabel:first-child { margin-top: 0; }
+.xgoal { margin: 4px 0 0; max-width: 75ch; }
+.xcols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 4px 24px; }
+@media (max-width: 760px) { .xcols { grid-template-columns: minmax(0, 1fr); } }
+.xsheet ul, .xsheet ol { margin: 6px 0 0; padding-left: 20px; }
+.xsheet li { margin: 3px 0; }
+.xcap { margin: 4px 0 6px; }
+.xtips li::marker { color: var(--accent); }
+.stage > .xsheet { margin-bottom: 14px; }
+#view > .xsheet { margin-bottom: 14px; }
+.srclist { margin-top: 8px; font-size: 0.9rem; }
+.srclist summary { cursor: pointer; color: var(--accent); font-weight: 600; }
 </style>
+
 </head>
 <body>
 
@@ -369,7 +392,7 @@ table.data th { background: var(--sunk); font-weight: 600; }
     <nav class="tabs" role="tablist" aria-label="Practice type">
       <button class="tab" role="tab" id="tab-today" data-view="today">Daily set</button>
       <button class="tab" role="tab" id="tab-practice" data-view="practice">Stations</button>
-      <button class="tab" role="tab" id="tab-lab" data-view="lab">Lab calcs</button>
+      <button class="tab" role="tab" id="tab-lab" data-view="lab">Lab tasks</button>
       <button class="tab" role="tab" id="tab-cards" data-view="cards">Flashcards</button>
       <button class="tab" role="tab" id="tab-review" data-view="review">Review missed <span class="count" id="missCount" hidden>0</span></button>
       <button class="tab" role="tab" id="tab-mock" data-view="mock">Mock test <span class="tmr" id="tabTimer"></span></button>
@@ -657,7 +680,7 @@ function record(q,frac){
   save();
 }
 function dateKey(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
-function poolForLevel(){return BANK.filter(q=>S.level==='C'||q.lv==='B')}
+function poolForLevel(){return BANK.filter(q=>!q.lab&&(S.level==='C'||q.lv==='B'))}
 function gensForLevel(){return Object.keys(GEN).filter(k=>S.level==='C'||GEN[k].lv==='B')}
 
 /* ---------------- question renderer ---------------- */
@@ -670,7 +693,7 @@ function renderQ(q,o){
   const p=ptsOf(q); meta.append(el('span','ctag',p+(p===1?' pt':' pts'))); if(o.label) meta.append(el('span','qnum',o.label));
   head.append(meta); card.append(head);
   card.append(rt('p','qtext',q.q));
-  if(q.tbl) card.append(tableEl(q.tbl));
+  if(q.tbl&&!(q.lab&&current==='lab'&&Lab.mode==='exp'&&(()=>{const L=(window.CW.LABS||[]).find(l=>l.id===q.lab);return L&&L.data&&JSON.stringify(L.data.rows)===JSON.stringify(q.tbl.rows)})())) card.append(tableEl(q.tbl));
   if(q.fig&&FIGS[q.fig]){const f=el('figure','qfig');f.innerHTML=FIGS[q.fig]();card.append(f)}
   if(q.k==='multi') card.append(el('p','subq','Select all that apply.'));
   const body=el('div'); card.append(body);
@@ -778,7 +801,8 @@ function feedback(q,resp){
   } else if(q.k==='short'){
     /* model shown above */
   } else fb.append(rt('p',null,q.x));
-  if(q.src&&SRC[q.src]) fb.append(el('div','from','Question style: '+SRC[q.src].label));
+  if(q.src&&SRC[q.src]) fb.append(el('div','from',(SRC[q.src].t?'Rewritten from: ':'Question style: ')+SRC[q.src].label));
+  if(q.lab&&current!=='lab'&&window.CW.LABS){const L=window.CW.LABS.find(l=>l.id===q.lab);if(L)fb.append(el('div','from','Uses the experiment “'+plain(L.title)+'” (Lab tasks → Experiments).'))}
   return fb;
 }
 
@@ -811,11 +835,11 @@ function emptyCard(msg,title){const c=el('div','card qcard');if(title)c.append(e
 
 let current='today';
 const FULL=['today','mock','progress'];
-function setLevel(lv){S.level=lv;save();Today.idx=null;document.getElementById('lvB').setAttribute('aria-pressed',lv==='B');document.getElementById('lvC').setAttribute('aria-pressed',lv==='C');Practice.reset();Review.reset();Cards.reset();Lab.cur=null;show(current)}
+function setLevel(lv){S.level=lv;save();Today.idx=null;document.getElementById('lvB').setAttribute('aria-pressed',lv==='B');document.getElementById('lvC').setAttribute('aria-pressed',lv==='C');Practice.reset();Review.reset();Cards.reset();Lab.cur=null;Lab.R=null;show(current)}
 document.getElementById('lvB').addEventListener('click',()=>setLevel('B'));
 document.getElementById('lvC').addEventListener('click',()=>setLevel('C'));
 function paintArea(){document.querySelectorAll('#areaSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.area===P.area?'true':'false'))}
-document.querySelectorAll('#areaSeg button').forEach(b=>b.addEventListener('click',()=>{P.area=b.dataset.area;saveP();paintArea();Practice.reset();Review.reset();Cards.deckTopic='all';Cards.reset();Lab.cur=null;Lab.type='mix';show(current)}));
+document.querySelectorAll('#areaSeg button').forEach(b=>b.addEventListener('click',()=>{P.area=b.dataset.area;saveP();paintArea();Practice.reset();Review.reset();Cards.deckTopic='all';Cards.reset();Lab.cur=null;Lab.type='mix';Lab.exp=null;Lab.R=null;show(current)}));
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>show(t.dataset.view)));
 function updateMiss(){const n=S.missed.filter(id=>BYID[id]&&lvOk(BYID[id])).length;const e=document.getElementById('missCount');if(e){e.hidden=!n;e.textContent=n}}
 function show(v){
@@ -1277,12 +1301,56 @@ const FORMULAS={
   arr:[['Two-point Arrhenius','ln(k_2/k_1) = (E_a/R)(1/T_1 − 1/T_2)\nR = 8.314 J/(mol·K)',1],['Order from rates','order = log(rate ratio) ÷ log(conc. ratio)']],
   lab:[['Beer’s law','A = εbc'],['Clock reactions','rate ∝ 1/time']]
 };
-const Lab={type:'mix',cur:null,resp:null,earned:0,count:0,sfRight:0,
+const LABS=window.CW.LABS||[]; const LABBY={}; LABS.forEach(l=>{LABBY[l.id]=l});
+const labIdsOf=id=>BANK.filter(q=>q.lab===id&&lvOk(q)).map(q=>q.id);
+const Lab={mode:'exp',exp:null,R:null,closed:{},type:'mix',cur:null,resp:null,earned:0,count:0,sfRight:0,
+  labs(){return LABS.filter(l=>l.area===P.area)},
+  setMode(m){Lab.mode=m;show('lab')},
+  startExp(id){const L=LABBY[id],ids=labIdsOf(id);ids.sort((a,b)=>(BYID[a].src!==L.src)-(BYID[b].src!==L.src));Lab.exp=id;Lab.R={title:L.title,items:ids,i:0,res:[],resp:[]}},
+  openExp(id){Lab.startExp(id);show('lab')},
+  modeSeg(pk){const sg=el('div','seg labseg');sg.setAttribute('role','group');sg.setAttribute('aria-label','Lab task type');
+    [['exp','Experiments'],['calc','Calculations']].forEach(([m,t])=>{const b=el('button',null,t);b.type='button';b.setAttribute('aria-pressed',Lab.mode===m?'true':'false');b.addEventListener('click',()=>Lab.setMode(m));sg.append(b)});pk.append(sg)},
+  expPicker(pk){
+    const list=Lab.labs(), all=list.flatMap(l=>labIdsOf(l.id)), b=barOf(all);
+    pickerHead(pk,AREAS[P.area].name+' experiments',`<b>${list.length}</b> experiments · <b>${b.g}</b> of ${b.t} questions right`,b.html);
+    const pl=el('div','plist');
+    if(!list.length) pl.append(el('p','small','No experiments for this topic yet.'));
+    list.forEach(l=>{const ids=labIdsOf(l.id),bb=barOf(ids);pl.append(pitem(plain(l.title),SRC[l.src]?SRC[l.src].label:'',`${bb.g}/${bb.t}`,bb.html,Lab.exp===l.id,()=>Lab.openExp(l.id)))});
+    pk.append(pl);
+  },
+  sheet(L){
+    const d=el('details','card xsheet'); d.open=!Lab.closed[L.id];
+    d.addEventListener('toggle',()=>{Lab.closed[L.id]=!d.open});
+    const sm=el('summary'); const hd=el('div','xhead');
+    hd.append(el('span','eyebrow','Experiment'+(SRC[L.src]?' · '+(SRC[L.src].t?'from ':'')+SRC[L.src].label:'')),rt('h2','card-title',L.title));
+    sm.append(hd,el('span','xtoggle',''),); d.append(sm);
+    const body=el('div','xbody');
+    body.append(el('div','flabel','Goal'),rt('p','xgoal',L.goal));
+    const cols=el('div','xcols');
+    const m=el('div');m.append(el('div','flabel','Materials'));const ul=el('ul');L.materials.forEach(x=>ul.append(rt('li',null,x)));m.append(ul);
+    const st=el('div');st.append(el('div','flabel','Procedure'));const ol=el('ol');L.steps.forEach(x=>ol.append(rt('li',null,x)));st.append(ol);
+    cols.append(m,st); body.append(cols);
+    if(L.data){body.append(el('div','flabel',L.data.caption?'Sample data':'Sample data'));if(L.data.caption)body.append(rt('p','small xcap',L.data.caption));body.append(tableEl(L.data))}
+    if(L.tips&&L.tips.length){body.append(el('div','flabel','What to watch for'));const tl=el('ul','xtips');L.tips.forEach(x=>tl.append(rt('li',null,x)));body.append(tl)}
+    d.append(body); return d;
+  },
+  renderExp(){
+    const list=Lab.labs();
+    if(!list.length){view.append(emptyCard('No experiments for this topic yet. Try the other topic or Calculations.','Experiments'));return}
+    if(!Lab.exp||!LABBY[Lab.exp]||LABBY[Lab.exp].area!==P.area||!Lab.R) Lab.startExp(Lab.exp&&LABBY[Lab.exp]&&LABBY[Lab.exp].area===P.area?Lab.exp:list[0].id);
+    const L=LABBY[Lab.exp];
+    view.append(Lab.sheet(L));
+    const i=list.findIndex(l=>l.id===L.id), nxt=list[(i+1)%list.length];
+    roundView(Lab.R,{eyebrow:'Lab task',empty:'No questions for this experiment at this level. Switch to All levels.',set:R=>{Lab.R=R},
+      nextLabel:list.length>1?'Next experiment':null,nextFn:()=>Lab.openExp(nxt.id)});
+  },
   keys(){return gensForLevel().filter(k=>GROUP_AREA[GEN[k].g]===P.area)},
   next(){let keys=Lab.keys(); if(Lab.type!=='mix'&&keys.includes(Lab.type)) keys=[Lab.type]; else Lab.type='mix';
     const r=rngFor('lab'+Date.now()+Math.random()); Lab.cur=genOne(pick(r,keys),r,String(Date.now())); Lab.resp=null},
   pick(k){Lab.type=k;Lab.next();show('lab')},
   picker(pk){
+    Lab.modeSeg(pk);
+    if(Lab.mode==='exp') return Lab.expPicker(pk);
     const a=AREAS[P.area], keys=Lab.keys();
     pk.append(el('h2',null,a.name+' calculations'));
     const t=el('p','tally'); t.innerHTML=`This session: <b>${Lab.count}</b> solved · <b>${Lab.count?Math.round(Lab.earned/Lab.count*100):0}%</b> credit · sig figs right on <b>${Lab.sfRight}</b>`; pk.append(t);
@@ -1297,9 +1365,10 @@ const Lab={type:'mix',cur:null,resp:null,earned:0,count:0,sfRight:0,
     pk.append(list);
   },
   render(){
+    if(Lab.mode==='exp') return Lab.renderExp();
     if(!Lab.cur||!Lab.keys().includes(Lab.cur.gen)||(Lab.type!=='mix'&&Lab.cur.gen!==Lab.type)) Lab.next();
     const q=Lab.cur, two=el('div','two');
-    const card=renderQ(q,{mode:Lab.resp!=null?'review':'instant',resp:Lab.resp,label:'Lab calcs',eyebrow:GROUPS[GEN[q.gen].g],
+    const card=renderQ(q,{mode:Lab.resp!=null?'review':'instant',resp:Lab.resp,label:'Lab calculation',eyebrow:GROUPS[GEN[q.gen].g],
       onAnswer:(resp)=>{const g=grade(q,resp);Lab.resp=resp;Lab.earned+=g.frac;Lab.count++;if(g.sfOk||(!q.sf&&g.frac===1))Lab.sfRight++;record(q,g.frac);show('lab')}});
     const act=el('div','btns'); const nx=el('button',Lab.resp!=null?'btn':'btn ghost',Lab.resp!=null?'New problem':'Skip this one'); nx.type='button';
     if(Lab.resp!=null){nx.dataset.next='1';setTimeout(()=>nx.focus({preventScroll:true}),0)}
@@ -1406,7 +1475,7 @@ const Mock={phase:'intro',qs:[],resps:[],secs:[],endAt:0,startAt:0,tick:null,rec
 /* ---------------- Progress ---------------- */
 const Progress={confirm:false,
   render(){
-    const s=el('section'); s.append(el('h2',null,'Progress'), el('p','sub','Saved in this browser. Topic bars count every question from the daily set, stations, lab calcs, review and mock tests.'));
+    const s=el('section'); s.append(el('h2',null,'Progress'), el('p','sub','Saved in this browser. Topic bars count every question from the daily set, stations, lab tasks, review and mock tests.'));
     const g=el('div','pgrid');
     // summary
     const a=el('div','panel'); a.append(el('h3',null,'Daily habit'));
@@ -1442,8 +1511,14 @@ const Progress={confirm:false,
     d.append(el('p','sub',`${BANK.length} written questions (${BANK.filter(q=>q.lv==='B').length} core, ${BANK.filter(q=>q.lv==='C').length} nationals level) plus ${Object.keys(GEN).length} lab-calc generators with unlimited numbers.`));
     const ul2=el('ul');Object.entries(KINDS).forEach(([k,v])=>ul2.append(el('li',null,`${v}: ${counts[k]||0}`)));d.append(ul2);
     const bySrc={};BANK.forEach(q=>{if(q.src)bySrc[q.src]=(bySrc[q.src]||0)+1});
-    d.append(el('div','flabel','Question styles')); d.lastChild.style.marginTop='12px';
-    const ul3=el('ul');Object.entries(SRC).sort((a,b)=>(b[1].past-a[1].past)||((bySrc[b[0]]||0)-(bySrc[a[0]]||0))).forEach(([k,v])=>{if(bySrc[k])ul3.append(el('li',null,`${v.label}: ${bySrc[k]}`))});d.append(ul3);
+    const tour=Object.entries(SRC).filter(([k,v])=>v.t&&bySrc[k]).sort((a,b)=>bySrc[b[0]]-bySrc[a[0]]);
+    const nT=tour.reduce((x,[k])=>x+bySrc[k],0), nLab=BANK.filter(q=>q.lab).length, LB=window.CW.LABS||[];
+    d.append(el('div','flabel','Where the questions come from')); d.lastChild.style.marginTop='12px';
+    const ul3=el('ul');ul3.append(el('li',null,`Rewritten from ${tour.length} past tournament tests: ${nT}`));
+    Object.entries(SRC).filter(([k,v])=>!v.t&&bySrc[k]).forEach(([k,v])=>ul3.append(el('li',null,`${v.label} (original): ${bySrc[k]}`)));
+    if(LB.length) ul3.append(el('li',null,`Lab experiments: ${LB.length}, with ${nLab} questions`));
+    d.append(ul3);
+    if(tour.length){const dt=el('details','srclist');dt.append(el('summary',null,'Show the tournaments'));const ul4=el('ul');tour.forEach(([k,v])=>ul4.append(el('li',null,`${v.label}: ${bySrc[k]}`)));dt.append(ul4);d.append(dt)}
     g.append(d);
     s.append(g); view.append(s);
   }
