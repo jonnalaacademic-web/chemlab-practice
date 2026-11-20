@@ -369,6 +369,28 @@ table.data th { background: var(--sunk); font-weight: 600; }
 .osbar { padding: 12px 18px; }
 .osbar .tally { margin: 0 0 8px; }
 .osbar .btns { margin-top: 0; flex-wrap: wrap; }
+body.osmode #areaSeg, body.osmode .seg:has(#lvB) { display: none; }
+.oxch { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin: 10px 0; }
+.oxch > summary { cursor: pointer; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 4px 2px; }
+.oxch > summary .oxchc { text-transform: none; letter-spacing: 0; font-weight: 500; white-space: nowrap; }
+.oxch .plist { margin-top: 6px; }
+.bar i.p { background: var(--accent); }
+.oxjump { margin-top: 14px; }
+.oxjump > summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+.oxgrid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.oxj { min-width: 30px; height: 28px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--ink); font-family: var(--font-mono); font-size: 0.8rem; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; }
+.oxj.ans { background: var(--sunk); border-color: var(--accent); }
+.oxj.full { color: var(--good); border-color: var(--good); background: var(--good-soft); }
+.oxj.half { color: #c98a12; border-color: #c98a12; background: var(--part-soft); }
+.oxj.none { color: var(--bad); border-color: var(--bad); background: var(--bad-soft); }
+.oxj.q { border-style: dashed; color: var(--accent); }
+.oxlegend { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.oxlegend .oxj { min-width: 22px; height: 22px; cursor: default; }
+.oxintro ul { margin: 10px 0; }
+.oxpaper .qhead .eyebrow { display: none; }
+.oxpaper .qhead { justify-content: flex-start; }
+.oxpaper .qmeta { flex-direction: row-reverse; gap: 8px; }
+.oxpaper .qnum { font-family: var(--font-mono); font-weight: 700; font-size: 1.05rem; color: var(--ink); }
 </style>
 
 </head>
@@ -404,7 +426,7 @@ table.data th { background: var(--sunk); font-weight: 600; }
       <button class="tab" role="tab" id="tab-today" data-view="today">Daily set</button>
       <button class="tab" role="tab" id="tab-practice" data-view="practice">Stations</button>
       <button class="tab" role="tab" id="tab-lab" data-view="lab">Lab tasks</button>
-      <button class="tab" role="tab" id="tab-os" data-view="os">OpenStax</button>
+      <button class="tab" role="tab" id="tab-os" data-view="os">OpenStax <span class="tmr" id="osTimer"></span></button>
       <button class="tab" role="tab" id="tab-cards" data-view="cards">Flashcards</button>
       <button class="tab" role="tab" id="tab-review" data-view="review">Review missed <span class="count" id="missCount" hidden>0</span></button>
       <button class="tab" role="tab" id="tab-mock" data-view="mock">Mock test <span class="tmr" id="tabTimer"></span></button>
@@ -856,7 +878,7 @@ document.querySelectorAll('#areaSeg button').forEach(b=>b.addEventListener('clic
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>show(t.dataset.view)));
 function updateMiss(){const n=S.missed.filter(id=>BYID[id]&&lvOk(BYID[id])).length;const e=document.getElementById('missCount');if(e){e.hidden=!n;e.textContent=n}}
 function show(v){
-  current=v; document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.view===v?'true':'false'));
+  current=v; document.body.classList.toggle('osmode',v==='os'); document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.view===v?'true':'false'));
   updateStreak(); updateMiss();
   view.innerHTML=''; modeHead.innerHTML='';
   const full=FULL.includes(v); pickerEl.hidden=full; mainEl.classList.toggle('full',full);
@@ -872,7 +894,7 @@ function updateStreak(){
 }
 /* keys: a–h answer multiple choice, Enter goes to the next question */
 document.addEventListener('keydown',e=>{
-  if(!['today','practice','review','lab','os'].includes(current)||e.metaKey||e.ctrlKey||e.altKey) return;
+  if(!['today','practice','review','lab'].includes(current)||e.metaKey||e.ctrlKey||e.altKey) return;
   const tg=e.target; if(tg&&(tg.tagName==='INPUT'||tg.tagName==='TEXTAREA'||tg.tagName==='SELECT')) return;
   if(e.key==='Enter'){const nx=view.querySelector('[data-next]'); if(nx&&!(tg&&tg.tagName==='BUTTON')){e.preventDefault();nx.click()} return}
   const k='abcdefgh'.indexOf(e.key.toLowerCase()); if(k<0) return;
@@ -1184,6 +1206,7 @@ function mergeState(a,b){
   for(const x of (a.mocks||[])) if(!mm.has(mk(x))||newer===a) mm.set(mk(x),x);
   m.mocks=[...mm.values()].sort((x,y)=>(x.t||0)-(y.t||0)||String(x.d).localeCompare(String(y.d)));
   m.missed=((newer.missed)||[]).slice();
+  m.ox=Object.assign({},b.ox||{}); for(const [k,v] of Object.entries(a.ox||{})){const o=m.ox[k]; if(!o||(v.at||0)>=(o.at||0)) m.ox[k]=v;}
   return m;
 }
 const Sync={SK:'chemlab-stations-sync',meta:{code:'',name:'',isNew:true,welcomed:false,dirty:false,at:0},state:'idle',err:'',timer:null,busy:false,ver:0,lastPush:0,lastPull:0,
@@ -1407,68 +1430,185 @@ const Lab={mode:'exp',exp:null,R:null,closed:{},type:'mix',cur:null,resp:null,ea
 };
 
 
-/* ---------------- OpenStax sections ---------------- */
+/* ---------------- OpenStax section tests (same layout as the A&P app) ---------------- */
 const OSEC=window.CW.OS||[]; const OSBY={}; OSEC.forEach(x=>{OSBY[x.id]=x});
-const OSCH={gas:['9','Gases','9-introduction'],kin:['12','Kinetics','12-introduction']};
-const osIdsOf=id=>BANK.filter(q=>q.os===id&&lvOk(q)).map(q=>q.id);
-const OSx={sec:null,R:null,closed:{},
-  secs(){return OSEC.filter(x=>x.area===P.area)},
-  start(id){const x=OSBY[id], ids=osIdsOf(id), r=rngFor('os'+id+Date.now());
-    const sh=shuffle(ids.filter(i=>BYID[i].k!=='short'),r), fr=ids.filter(i=>BYID[i].k==='short');
-    OSx.sec=id; OSx.R={title:'Section '+id+' quiz',items:sh.concat(fr),i:0,res:[],resp:[]}},
-  open(id){OSx.start(id);show('os')},
+const OSCH=[['gas','9','Gases','9-introduction'],['kin','12','Kinetics','12-introduction']];
+const OX_TYPES=[['mc','Multiple choice'],['multi','Select all that apply'],['tf','True or false'],['fill','One-word answer'],['num','Calculations'],['short','Free response']];
+const OSx={sec:null,timed:true,tick:null,filter:'all',open:{},armed:null,
+  st(){S.ox=S.ox||{};return S.ox},
+  ensureSec(){if(!OSx.sec||!OSBY[OSx.sec]){const f=OSEC.find(x=>x.area===P.area)||OSEC[0];OSx.sec=P.oxSec&&OSBY[P.oxSec]?P.oxSec:f&&f.id}},
+  pick(id){OSx.sec=id;P.oxSec=id;saveP();OSx.filter='all';OSx.armed=null},
+  rec(id){const r=OSx.st()[id];return r&&r.phase!=='reset'?r:null},
   allIds(id){return BANK.filter(q=>q.os===id).map(q=>q.id)},
-  missedIn(id){return osIdsOf(id).filter(i=>S.missed.includes(i))},
-  retake(id){const m=OSx.missedIn(id);if(!m.length)return;OSx.sec=id;OSx.R={title:'Section '+id+' · retake missed',items:shuffle(m,rngFor('osm'+Date.now())),i:0,res:[],resp:[]};show('os')},
-  reset(id){S.cleared=S.cleared||{};OSx.allIds(id).forEach(i=>{S.cleared[i]=S.seen[i]||0;const k=S.missed.indexOf(i);if(k>=0)S.missed.splice(k,1)});save();OSx.armed=null;OSx.start(id);show('os')},
-  bar(x){
-    const ids=osIdsOf(x.id), b=barOf(ids), miss=OSx.missedIn(x.id), c=el('div','card osbar');
-    const t=el('p','tally');t.innerHTML=`Section ${esc(x.id)}: <b>${b.g}</b> right · <b>${miss.length}</b> to retake · ${ids.length-b.g-b.r} not tried`;c.append(t);
-    const bs=el('div','btns');
-    const r=el('button','btn',miss.length?`Retake missed (${miss.length})`:'No missed questions');r.type='button';r.disabled=!miss.length;r.addEventListener('click',()=>OSx.retake(x.id));
-    const n=el('button','btn ghost','Start full quiz');n.type='button';n.addEventListener('click',()=>{OSx.start(x.id);show('os')});
-    const armed=OSx.armed===x.id, z=el('button',armed?'btn danger':'btn quiet',armed?'Tap again to clear this section':'Reset section');z.type='button';
-    z.addEventListener('click',()=>{if(OSx.armed===x.id)OSx.reset(x.id);else{OSx.armed=x.id;show('os')}});
-    bs.append(r,n,z);c.append(bs);
-    if(armed)c.append(el('p','small','This clears your right and missed marks for this section only. Other sections and topics stay.'));
-    return c;
+  ordered(ids,seed){const r=rngFor(seed);const by={};ids.forEach(i=>{const k=BYID[i].k;(by[k]=by[k]||[]).push(i)});return OX_TYPES.flatMap(([k])=>shuffle((by[k]||[]).slice(),r))},
+  pts(ids){return ids.reduce((a,i)=>a+ptsOf(BYID[i]),0)},
+  mins(n){return Math.max(10,Math.ceil(n*1.5/5)*5)},
+  answered(r){return r.resp.filter(x=>x!=null&&x!==''&&!(Array.isArray(x)&&!x.length)&&!(x&&typeof x==='object'&&!Array.isArray(x)&&!String(x.text||'').trim())).length},
+  isAns(x){return x!=null&&x!==''&&!(Array.isArray(x)&&!x.length)&&!(x&&typeof x==='object'&&!Array.isArray(x)&&!String(x.text||'').trim())},
+  missedOf(r){return r.ids.filter((id,i)=>{const q=BYID[id];return grade(q,r.resp[i]).frac<1})},
+  start(id,ids,label){
+    const n=ids.length, m=OSx.mins(n), now=Date.now();
+    OSx.st()[id]={phase:'run',ids:OSx.ordered(ids,'ox'+id+now),resp:ids.map(()=>null),startAt:now,endAt:OSx.timed?now+m*60000:0,mins:OSx.timed?m:0,label:label||'',at:now};
+    OSx.pick(id); OSx.armed=null; save(); OSx.ensureTick(); show('os'); window.scrollTo({top:0});
   },
-  credit(){const p=el('p','small oscredit');const c=OSCH[P.area]||OSCH.gas;p.innerHTML='Section notes and quizzes are written for this app and follow <a href="https://openstax.org/books/chemistry-2e/pages/'+c[2]+'" target="_blank" rel="noopener">OpenStax Chemistry 2e, Chapter '+c[0]+'</a> (© Rice University, <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a>). Read the book free online.';return p},
+  submit(id){
+    const r=OSx.rec(id); if(!r||r.phase!=='run') return;
+    r.phase='done'; r.used=Math.max(1,Math.round((Date.now()-r.startAt)/60000)); r.at=Date.now(); r.recShort=[];
+    r.ids.forEach((qid,i)=>{const q=BYID[qid]; if(q&&q.k!=='short') record(q,grade(q,r.resp[i]).frac)});
+    r.ids.forEach((qid,i)=>{const q=BYID[qid]; if(q&&q.k==='short') r.resp[i]={text:(r.resp[i]&&r.resp[i].text)||'',hits:q.kp.map(()=>false)}});
+    save(); OSx.ensureTick(); if(current==='os'&&OSx.sec===id){show('os');window.scrollTo({top:0})}
+  },
+  reset(id){
+    S.cleared=S.cleared||{}; OSx.allIds(id).forEach(i=>{S.cleared[i]=S.seen[i]||0;const k=S.missed.indexOf(i);if(k>=0)S.missed.splice(k,1)});
+    OSx.st()[id]={phase:'reset',at:Date.now()}; OSx.armed=null; save(); OSx.ensureTick(); show('os');
+  },
+  running(){return Object.entries(OSx.st()).filter(([k,r])=>r&&r.phase==='run'&&r.endAt)},
+  ensureTick(){clearInterval(OSx.tick); OSx.tick=null; if(OSx.running().length){OSx.tick=setInterval(OSx.onTick,1000)} OSx.onTick()},
+  fmt(ms){const m=Math.floor(ms/60000),s=Math.floor(ms%60000/1000);return `${m}:${String(s).padStart(2,'0')}`},
+  onTick(){
+    const run=OSx.running(); const tt=document.getElementById('osTimer');
+    run.forEach(([id,r])=>{if(Date.now()>=r.endAt) OSx.submit(id)});
+    const cur=OSx.rec(OSx.sec), live=cur&&cur.phase==='run'&&cur.endAt?cur:(OSx.running()[0]||[])[1];
+    if(tt) tt.textContent=live?OSx.fmt(Math.max(0,live.endAt-Date.now())):'';
+    const c=document.getElementById('oxclock'); if(c&&cur&&cur.phase==='run'){if(cur.endAt){const left=Math.max(0,cur.endAt-Date.now());c.textContent=OSx.fmt(left);c.classList.toggle('low',left<3*60000)}else c.textContent='No timer'}
+  },
+  status(id){const r=OSx.rec(id),n=OSx.allIds(id).length;
+    if(!r) return {txt:'Not started',pct:0,cls:''};
+    if(r.phase==='run') return {txt:`In progress · ${OSx.answered(r)}/${r.ids.length}`,pct:OSx.answered(r)/r.ids.length*100,cls:'run'};
+    const t=OSx.totals(r); const p=t.p?Math.round(t.e/t.p*100):0; return {txt:(r.label?'Retake · ':'')+p+'%',pct:p,cls:'done'}},
+  totals(r){const t={e:0,p:0,ae:0,ap:0,we:0,wp:0,k:{}};r.ids.forEach((id,i)=>{const q=BYID[id];if(!q)return;const p=ptsOf(q),e=grade(q,r.resp[i]).frac*p;
+    t.e+=e;t.p+=p;if(q.k==='short'){t.we+=e;t.wp+=p}else{t.ae+=e;t.ap+=p}(t.k[q.k]=t.k[q.k]||[0,0]);t.k[q.k][0]+=e;t.k[q.k][1]+=p});return t},
+  r1(x){return Math.round(x*100)/100},
+  /* ---------- left panel ---------- */
   picker(pk){
-    const list=OSx.secs();
-    if(!list.length){pk.append(el('h2',null,'OpenStax'));pk.append(el('p','small','No OpenStax sections for this topic yet.'));return}
-    const all=list.flatMap(x=>osIdsOf(x.id)), b=barOf(all);
-    const ch=OSCH[P.area]||['',AREAS[P.area].name];
-    pickerHead(pk,'OpenStax Ch. '+ch[0]+' · '+ch[1],`<b>${list.length}</b> sections · <b>${b.g}</b> of ${b.t} questions right`,b.html);
-    const pl=el('div','plist');
-    list.forEach(x=>{const ids=osIdsOf(x.id),bb=barOf(ids),nc=ids.filter(i=>BYID[i].k==='num').length;
-      pl.append(pitem(x.id+'  '+plain(x.title),`${ids.length} questions · ${nc} calculations`,`${bb.g}/${bb.t}`,bb.html,OSx.sec===x.id,()=>{OSx.armed=null;OSx.open(x.id)}))});
-    pk.append(pl); pk.append(OSx.credit());
+    if(!OSEC.length) return; OSx.ensureSec();
+    pk.append(el('h2',null,'OpenStax Chemistry 2e'));
+    pk.append(el('p','small','Quizzes for each section of the OpenStax Chemistry 2e chapters on gases and kinetics.'));
+    const curArea=OSx.sec&&OSBY[OSx.sec]?OSBY[OSx.sec].area:P.area;
+    OSCH.forEach(([area,num,name])=>{
+      const list=OSEC.filter(x=>x.area===area); if(!list.length) return;
+      const d=el('details','oxch'); d.open=OSx.open[area]!=null?OSx.open[area]:area===curArea;
+      d.addEventListener('toggle',()=>{OSx.open[area]=d.open});
+      const sm=el('summary'); sm.append(el('span','oxchn',`Chapter ${num} · ${name}`),el('span','oxchc',`${list.length} quizzes`)); d.append(sm);
+      const pl=el('div','plist');
+      list.forEach(x=>{const ids=OSx.allIds(x.id), s=OSx.status(x.id);
+        const b=el('button','pitem'); b.type='button'; b.setAttribute('aria-current',OSx.sec===x.id?'true':'false');
+        b.innerHTML=`<span class="pt">${esc(x.id+' '+plain(x.title))}</span><span class="pm"><span>${ids.length} Qs · ${OSx.pts(ids)} pts</span><span class="${s.cls==='done'?'mono':''}">${esc(s.txt)}</span></span><div class="bar" aria-hidden="true"><i class="${s.cls==='run'?'p':'g'}" style="width:${s.pct.toFixed(1)}%"></i></div>`;
+        b.addEventListener('click',()=>{OSx.pick(x.id);show('os');window.scrollTo({top:0})}); pl.append(b)});
+      d.append(pl); pk.append(d);
+    });
+    const r=OSx.rec(OSx.sec); if(r) pk.append(OSx.jumpGrid(r));
+    const c=el('p','small oscredit'); c.innerHTML='Section notes and quizzes are written for this app and follow <a href="https://openstax.org/books/chemistry-2e/pages/9-introduction" target="_blank" rel="noopener">OpenStax Chemistry 2e</a> (© Rice University, <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a>). Read the book free online.'; pk.append(c);
   },
-  sheet(x){
-    const d=el('details','card xsheet'); d.open=!OSx.closed[x.id];
-    d.addEventListener('toggle',()=>{OSx.closed[x.id]=!d.open});
-    const sm=el('summary'); const hd=el('div','xhead');
-    hd.append(el('span','eyebrow','OpenStax Chemistry 2e · Section '+x.id),rt('h2','card-title',x.title));
-    sm.append(hd,el('span','xtoggle','')); d.append(sm);
+  jumpGrid(r){
+    const d=el('details','oxjump'); d.open=true; d.append(el('summary',null,'Jump to a question'));
+    const g=el('div','oxgrid'); g.id='oxgrid';
+    r.ids.forEach((id,i)=>{const q=BYID[id]; const b=el('button','oxj',String(i+1)); b.type='button';
+      if(r.phase==='run'){if(OSx.isAns(r.resp[i])) b.classList.add('ans')}
+      else{const f=grade(q,r.resp[i]).frac; if(q.k==='short'&&!(r.resp[i]&&r.resp[i].hits&&r.resp[i].hits.some(Boolean))) b.classList.add('q'); else b.classList.add(f===1?'full':f>0?'half':'none')}
+      b.addEventListener('click',()=>{const t=document.getElementById('oxq-'+(i+1)); if(t) t.scrollIntoView({behavior:'smooth',block:'start'})}); g.append(b)});
+    d.append(g);
+    const lg=el('div','oxlegend small'); lg.innerHTML=r.phase==='run'?'<span class="oxj ans">✓</span> answered <span class="oxj">·</span> blank':'<span class="oxj full">✓</span> full <span class="oxj half">½</span> partial <span class="oxj none">✗</span> none <span class="oxj q">?</span> grade it'; d.append(lg);
+    return d;
+  },
+  paintJump(r){const g=document.getElementById('oxgrid'); if(!g) return; [...g.children].forEach((b,i)=>b.classList.toggle('ans',OSx.isAns(r.resp[i])))},
+  /* ---------- main panel ---------- */
+  render(){
+    if(!OSEC.length){view.append(emptyCard('No OpenStax sections yet.','OpenStax'));return}
+    OSx.ensureSec();
+    const x=OSBY[OSx.sec], r=OSx.rec(x.id);
+    if(!r) return OSx.intro(x);
+    if(r.phase==='run') return OSx.exam(x,r);
+    return OSx.results(x,r);
+  },
+  notes(x){
+    const d=el('details','card xsheet'); d.open=false;
+    const sm=el('summary'); const hd=el('div','xhead'); hd.append(el('span','eyebrow','Section notes'),el('h2','card-title','Key ideas and equations')); sm.append(hd,el('span','xtoggle','')); d.append(sm);
     const body=el('div','xbody');
     body.append(el('div','flabel','Key ideas'));const ul=el('ul');x.ideas.forEach(t=>ul.append(rt('li',null,t)));body.append(ul);
     body.append(el('div','flabel','Key equations'));
-    const eq=el('div','oseqs');x.eqs.forEach(([a,f])=>{const r=el('div','oseq');r.append(el('span','oslab',a),rt('div','formula',f));eq.append(r)});body.append(eq);
+    const eq=el('div','oseqs');x.eqs.forEach(([a,f])=>{const rr=el('div','oseq');rr.append(el('span','oslab',a),rt('div','formula',f));eq.append(rr)});body.append(eq);
     const a=el('a','btn ghost small oslink','Read section '+x.id+' on openstax.org ↗');a.href=x.url;a.target='_blank';a.rel='noopener';
-    const lk=el('div','btns');lk.append(a);body.append(lk);
-    d.append(body); return d;
+    const lk=el('div','btns');lk.append(a);body.append(lk); d.append(body); return d;
   },
-  render(){
-    const list=OSx.secs();
-    if(!list.length){view.append(emptyCard('No OpenStax sections for this topic yet.','OpenStax'));return}
-    if(!OSx.sec||!OSBY[OSx.sec]||OSBY[OSx.sec].area!==P.area||!OSx.R) OSx.start(OSx.sec&&OSBY[OSx.sec]&&OSBY[OSx.sec].area===P.area?OSx.sec:list[0].id);
-    const x=OSBY[OSx.sec]; view.append(OSx.bar(x)); view.append(OSx.sheet(x));
-    const i=list.findIndex(s=>s.id===x.id), nxt=list[i+1];
-    roundView(OSx.R,{eyebrow:'OpenStax '+x.id,empty:'No questions for this section at this level. Switch to All levels.',set:R=>{OSx.R=R},
-      nextLabel:nxt?'Next section ('+nxt.id+')':null,nextFn:()=>nxt&&OSx.open(nxt.id)});
+  intro(x){
+    const ids=OSx.allIds(x.id), qs=ids.map(i=>BYID[i]), n=ids.length, p=OSx.pts(ids);
+    const types=OX_TYPES.filter(([k])=>qs.some(q=>q.k===k)).map(([,t])=>t);
+    const auto=qs.filter(q=>q.k!=='short'), wr=qs.filter(q=>q.k==='short'), nc=qs.filter(q=>q.k==='num').length;
+    const c=el('div','card qcard oxintro'); c.append(el('span','eyebrow','OpenStax'), rt('h1','card-title',x.id+' '+x.title));
+    c.append(el('p',null,'Practice quiz for this OpenStax section, written Science Olympiad style. Read the section first, or open the notes below.'));
+    const ul=el('ul');
+    const li1=el('li');li1.innerHTML=`<b>${n} questions, ${p} points</b> · ${esc(types.join(', '))}`;ul.append(li1);
+    ul.append(el('li',null,`${auto.length} are graded for you (multiple choice, select-all, true/false, one-word and calculations). Select-all questions give partial credit.`));
+    ul.append(el('li',null,`${nc} calculations are graded on value and sig figs: the right value with wrong sig figs earns ¾ credit.`));
+    if(wr.length) ul.append(el('li',null,`${wr.length} ${wr.length===1?'is a written answer':'are written answers'}. After you submit, compare with the model answer and tick the key points you hit.`));
+    ul.append(el('li',null,'Your answers save as you go on this device, even if you close the page.'));
+    c.append(ul);
+    c.append(el('div','flabel','Timer'));
+    const sg=el('div','seg');sg.setAttribute('role','group');sg.setAttribute('aria-label','Timer');
+    [[true,`${OSx.mins(n)}-minute timer`],[false,'No timer']].forEach(([v,t])=>{const b=el('button',null,t);b.type='button';b.setAttribute('aria-pressed',OSx.timed===v?'true':'false');b.addEventListener('click',()=>{OSx.timed=v;show('os')});sg.append(b)});
+    c.append(sg);
+    const act=el('div','btns');const b=el('button','btn','Start the test');b.type='button';b.addEventListener('click',()=>OSx.start(x.id,ids));act.append(b);c.append(act);
+    view.append(c, OSx.notes(x));
+  },
+  exam(x,r){
+    const bar=el('div','timerbar'); const lc=el('div'); const ck=el('span','clock',r.endAt?OSx.fmt(Math.max(0,r.endAt-Date.now())):'No timer'); ck.id='oxclock';
+    const mc=el('span','small',`${r.endAt?' left · ':' · '}${OSx.answered(r)} of ${r.ids.length} answered`); mc.id='oxcount'; lc.append(ck,mc);
+    const rt2=el('div','btns'); rt2.style.marginTop='0'; const sb=el('button','btn','Submit test'); sb.type='button';
+    const ask=()=>{rt2.innerHTML='';const bl=r.ids.length-OSx.answered(r);rt2.append(el('span','small',(bl?`${bl} left blank. `:'')+'Submit now? You can’t change answers after.'));
+      const y=el('button','btn','Yes, submit');y.type='button';y.addEventListener('click',()=>OSx.submit(x.id));
+      const nn=el('button','btn ghost','Keep working');nn.type='button';nn.addEventListener('click',()=>{rt2.innerHTML='';rt2.append(sb)});rt2.append(y,nn)};
+    sb.addEventListener('click',ask); rt2.append(sb); bar.append(lc,rt2); view.append(bar);
+    const paper=el('div','card paper oxpaper'); const ph=el('div','paperhead');
+    ph.append(el('span','eyebrow',x.id+' '+plain(x.title)+(r.label?' · '+r.label:'')), rt('h1','card-title',x.title),
+      el('p','small',`${r.ids.length} questions · ${OSx.pts(r.ids)} points${r.mins?` · ${r.mins} minutes`:''}. Answer in any order.${r.mins?' The test submits itself when time runs out.':''}`));
+    paper.append(ph, OSx.paperBody(r,'exam'));
+    const a2=el('div','btns'); const sb2=el('button','btn','Submit test'); sb2.type='button'; sb2.addEventListener('click',()=>{window.scrollTo({top:0});ask()}); a2.append(sb2); paper.append(a2);
+    view.append(paper); OSx.onTick();
+  },
+  paperBody(r,mode,filter){
+    const frag=document.createDocumentFragment(); let last=null;
+    r.ids.forEach((id,i)=>{const q=BYID[id]; if(!q) return;
+      if(mode==='review'&&filter==='missed'&&grade(q,r.resp[i]).frac>=1&&q.k!=='short') return;
+      if(mode==='review'&&filter==='missed'&&q.k==='short'&&grade(q,r.resp[i]).frac>=1) return;
+      if(mode==='review'&&filter==='written'&&q.k!=='short') return;
+      if(q.k!==last){frag.append(el('h2','secth',OX_TYPES.find(t=>t[0]===q.k)[1]));last=q.k}
+      const holder=el('div'); holder.id='oxq-'+(i+1);
+      if(mode==='exam'){holder.append(renderQ(q,{mode:'exam',resp:r.resp[i],label:`${i+1}.`,onChange:(v)=>{r.resp[i]=v;r.at=Date.now();save();
+        const c=document.getElementById('oxcount');if(c)c.textContent=`${r.endAt?' left · ':' · '}${OSx.answered(r)} of ${r.ids.length} answered`;OSx.paintJump(r)}}))}
+      else{const draw=()=>{holder.innerHTML='';holder.append(renderQ(q,{mode:'review',resp:r.resp[i],label:`${i+1}.`,
+        onHits:q.k==='short'?(h)=>{r.resp[i].hits=h;r.at=Date.now();r.recShort=r.recShort||[];if(!r.recShort.includes(id)){r.recShort.push(id)}
+          save();OSx.paintScore(r);const g=document.getElementById('oxgrid');if(g){const b=g.children[i];b.className='oxj '+(h.some(Boolean)?(h.every(Boolean)?'full':'half'):'q')}}:null}))};draw()}
+      frag.append(holder)});
+    if(!frag.childNodes.length) frag.append(el('p','empty',filter==='written'?'No written answers in this test.':'Nothing missed. Nice work.'));
+    return frag;
+  },
+  tiles(r){const t=OSx.totals(r),g=el('div');g.id='oxtiles';const one=(n,l)=>{const d=el('div');d.append(el('div','n mono',n),el('div','l',l));return d};const f=x=>String(OSx.r1(x));
+    const a=el('div','secscore');a.append(one(`${f(t.ae)} / ${t.ap}`,'Graded for you'));if(t.wp)a.append(one(`${f(t.we)} / ${t.wp}`,'Written (you grade)'));
+    const b=el('div','secscore');OX_TYPES.forEach(([k,n])=>{if(t.k[k])b.append(one(`${f(t.k[k][0])} / ${t.k[k][1]}`,n))});g.append(a,b);return g},
+  paintScore(r){const t=OSx.totals(r),a=document.getElementById('oxscore'),b=document.getElementById('oxpts');if(a)a.textContent=(t.p?Math.round(t.e/t.p*100):0)+'%';
+    if(b)b.textContent=`${OSx.r1(t.e)} of ${t.p} points`;const ti=document.getElementById('oxtiles');if(ti)ti.replaceWith(OSx.tiles(r))},
+  results(x,r){
+    const t=OSx.totals(r); const c=el('div','card qcard');
+    c.append(el('span','eyebrow',`${x.id} ${plain(x.title)}${r.label?' · '+r.label:''} · Results · ${r.used||1} min`));
+    const sc=el('p','score mono',(t.p?Math.round(t.e/t.p*100):0)+'%'); sc.id='oxscore'; const pts=el('p',null,`${OSx.r1(t.e)} of ${t.p} points`); pts.id='oxpts';
+    c.append(sc,pts,OSx.tiles(r));
+    if(t.wp) c.append(el('p','small','Written answers start at 0. Tick the key points you hit under each free-response question below; your score updates as you go.'));
+    const act=el('div','btns'); const miss=OSx.missedOf(r).filter(id=>BYID[id].k!=='short'||(r.resp[r.ids.indexOf(id)].hits||[]).some(h=>!h));
+    const m=el('button','btn',miss.length?`Retake missed only (${miss.length})`:'Nothing missed');m.type='button';m.disabled=!miss.length;m.addEventListener('click',()=>OSx.start(x.id,miss,'Retake missed'));
+    const a=el('button','btn ghost','Retake this test');a.type='button';a.addEventListener('click',()=>OSx.start(x.id,OSx.allIds(x.id)));
+    const armed=OSx.armed===x.id, z=el('button',armed?'btn danger':'btn quiet',armed?'Tap again to reset':'Reset section');z.type='button';
+    z.addEventListener('click',()=>{if(OSx.armed===x.id)OSx.reset(x.id);else{OSx.armed=x.id;show('os')}});
+    act.append(m,a,z); c.append(act);
+    if(armed) c.append(el('p','small','Reset clears this section’s test and its right/missed marks. Other sections stay.'));
+    view.append(c);
+    const rv=el('div','card paper oxpaper'); rv.append(el('span','eyebrow','Answer review'), el('p','small','Green is the correct answer, red is a wrong pick. For written answers, compare with the model answer and tick the points you made.'));
+    const sg=el('div','seg');sg.setAttribute('role','group');sg.setAttribute('aria-label','Show');
+    [['all','All questions'],['missed','Missed or partial'],['written','My written answers']].forEach(([k,tx])=>{const b=el('button',null,tx);b.type='button';b.setAttribute('aria-pressed',OSx.filter===k?'true':'false');b.addEventListener('click',()=>{OSx.filter=k;show('os')});sg.append(b)});
+    rv.append(sg, OSx.paperBody(r,'review',OSx.filter)); view.append(rv, OSx.notes(x));
   }
 };
+setTimeout(()=>{try{OSx.ensureTick()}catch(e){}},0);
 /* ---------------- Mock test ---------------- */
 const ROMAN=['I','II','III','IV'];
 const PARTS=[['mc','A · Multiple choice'],['tf','B · True or false'],['num','C · Calculations'],['short','D · Free response']];
