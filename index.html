@@ -358,6 +358,17 @@ table.data th { background: var(--sunk); font-weight: 600; }
 #view > .xsheet { margin-bottom: 14px; }
 .srclist { margin-top: 8px; font-size: 0.9rem; }
 .srclist summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.oseqs { display: grid; gap: 6px; }
+.oseq { display: grid; grid-template-columns: minmax(110px, 30%) 1fr; gap: 10px; align-items: center; }
+.oseq .formula { margin: 0; }
+.oslab { font-size: 0.86rem; color: var(--muted); }
+.oslink { margin-top: 12px; text-decoration: none; }
+.oscredit { margin-top: 12px; }
+.oscredit a { color: var(--accent); }
+@media (max-width: 640px) { .oseq { grid-template-columns: 1fr; gap: 2px; } }
+.osbar { padding: 12px 18px; }
+.osbar .tally { margin: 0 0 8px; }
+.osbar .btns { margin-top: 0; flex-wrap: wrap; }
 </style>
 
 </head>
@@ -393,6 +404,7 @@ table.data th { background: var(--sunk); font-weight: 600; }
       <button class="tab" role="tab" id="tab-today" data-view="today">Daily set</button>
       <button class="tab" role="tab" id="tab-practice" data-view="practice">Stations</button>
       <button class="tab" role="tab" id="tab-lab" data-view="lab">Lab tasks</button>
+      <button class="tab" role="tab" id="tab-os" data-view="os">OpenStax</button>
       <button class="tab" role="tab" id="tab-cards" data-view="cards">Flashcards</button>
       <button class="tab" role="tab" id="tab-review" data-view="review">Review missed <span class="count" id="missCount" hidden>0</span></button>
       <button class="tab" role="tab" id="tab-mock" data-view="mock">Mock test <span class="tmr" id="tabTimer"></span></button>
@@ -680,7 +692,7 @@ function record(q,frac){
   save();
 }
 function dateKey(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
-function poolForLevel(){return BANK.filter(q=>!q.lab&&(S.level==='C'||q.lv==='B'))}
+function poolForLevel(){return BANK.filter(q=>!q.lab&&!q.os&&(S.level==='C'||q.lv==='B'))}
 function gensForLevel(){return Object.keys(GEN).filter(k=>S.level==='C'||GEN[k].lv==='B')}
 
 /* ---------------- question renderer ---------------- */
@@ -801,7 +813,7 @@ function feedback(q,resp){
   } else if(q.k==='short'){
     /* model shown above */
   } else fb.append(rt('p',null,q.x));
-  if(q.src&&SRC[q.src]) fb.append(el('div','from',(SRC[q.src].t?'Rewritten from: ':'Question style: ')+SRC[q.src].label));
+  if(q.src&&SRC[q.src]) fb.append(el('div','from',(SRC[q.src].t?'Rewritten from: ':SRC[q.src].os?'Based on: ':'Question style: ')+SRC[q.src].label+(q.os?', section '+q.os:'')));
   if(q.lab&&current!=='lab'&&window.CW.LABS){const L=window.CW.LABS.find(l=>l.id===q.lab);if(L)fb.append(el('div','from','Uses the experiment “'+plain(L.title)+'” (Lab tasks → Experiments).'))}
   return fb;
 }
@@ -820,7 +832,8 @@ try{Object.assign(P,JSON.parse(localStorage.getItem(PK)||'{}'))}catch(e){}
 if(!AREAS[P.area]) P.area=AREA_KEYS[0];
 function saveP(){try{localStorage.setItem(PK,JSON.stringify(P))}catch(e){}}
 const lvOk=q=>S.level==='C'||q.lv==='B';
-const statusOf=id=>S.missed.includes(id)?'r':S.seen[id]?'g':'';
+const isSeen=id=>(S.seen[id]||0)>((S.cleared||{})[id]||0);
+const statusOf=id=>S.missed.includes(id)?'r':isSeen(id)?'g':'';
 function barOf(ids,st){let g=0,r=0;ids.forEach(id=>{const s=(st||statusOf)(id);if(s==='g')g++;else if(s==='r')r++});const n=ids.length||1;
   return {g,r,t:ids.length,html:`<div class="bar" aria-hidden="true"><i class="g" style="width:${(g/n*100).toFixed(1)}%"></i><i class="r" style="width:${(r/n*100).toFixed(1)}%"></i></div>`}}
 function pitem(title,meta,right,bar,cur,onClick,disabled){
@@ -835,11 +848,11 @@ function emptyCard(msg,title){const c=el('div','card qcard');if(title)c.append(e
 
 let current='today';
 const FULL=['today','mock','progress'];
-function setLevel(lv){S.level=lv;save();Today.idx=null;document.getElementById('lvB').setAttribute('aria-pressed',lv==='B');document.getElementById('lvC').setAttribute('aria-pressed',lv==='C');Practice.reset();Review.reset();Cards.reset();Lab.cur=null;Lab.R=null;show(current)}
+function setLevel(lv){S.level=lv;save();Today.idx=null;document.getElementById('lvB').setAttribute('aria-pressed',lv==='B');document.getElementById('lvC').setAttribute('aria-pressed',lv==='C');Practice.reset();Review.reset();Cards.reset();Lab.cur=null;Lab.R=null;OSx.R=null;show(current)}
 document.getElementById('lvB').addEventListener('click',()=>setLevel('B'));
 document.getElementById('lvC').addEventListener('click',()=>setLevel('C'));
 function paintArea(){document.querySelectorAll('#areaSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.area===P.area?'true':'false'))}
-document.querySelectorAll('#areaSeg button').forEach(b=>b.addEventListener('click',()=>{P.area=b.dataset.area;saveP();paintArea();Practice.reset();Review.reset();Cards.deckTopic='all';Cards.reset();Lab.cur=null;Lab.type='mix';Lab.exp=null;Lab.R=null;show(current)}));
+document.querySelectorAll('#areaSeg button').forEach(b=>b.addEventListener('click',()=>{P.area=b.dataset.area;saveP();paintArea();Practice.reset();Review.reset();Cards.deckTopic='all';Cards.reset();Lab.cur=null;Lab.type='mix';Lab.exp=null;Lab.R=null;OSx.R=null;show(current)}));
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>show(t.dataset.view)));
 function updateMiss(){const n=S.missed.filter(id=>BYID[id]&&lvOk(BYID[id])).length;const e=document.getElementById('missCount');if(e){e.hidden=!n;e.textContent=n}}
 function show(v){
@@ -847,8 +860,8 @@ function show(v){
   updateStreak(); updateMiss();
   view.innerHTML=''; modeHead.innerHTML='';
   const full=FULL.includes(v); pickerEl.hidden=full; mainEl.classList.toggle('full',full);
-  if(!full) keepPickerScroll(pickerEl,()=>{pickerEl.innerHTML='';({practice:Practice.picker,review:Review.picker,lab:Lab.picker,cards:Cards.picker})[v](pickerEl)});
-  ({today:Today.render,practice:Practice.render,review:Review.render,lab:Lab.render,mock:Mock.render,progress:Progress.render,cards:Cards.render})[v]();
+  if(!full) keepPickerScroll(pickerEl,()=>{pickerEl.innerHTML='';({practice:Practice.picker,review:Review.picker,lab:Lab.picker,os:OSx.picker,cards:Cards.picker})[v](pickerEl)});
+  ({today:Today.render,practice:Practice.render,review:Review.render,lab:Lab.render,os:OSx.render,mock:Mock.render,progress:Progress.render,cards:Cards.render})[v]();
 }
 function updateStreak(){
   let n=0; const d=new Date();
@@ -859,7 +872,7 @@ function updateStreak(){
 }
 /* keys: a–h answer multiple choice, Enter goes to the next question */
 document.addEventListener('keydown',e=>{
-  if(!['today','practice','review','lab'].includes(current)||e.metaKey||e.ctrlKey||e.altKey) return;
+  if(!['today','practice','review','lab','os'].includes(current)||e.metaKey||e.ctrlKey||e.altKey) return;
   const tg=e.target; if(tg&&(tg.tagName==='INPUT'||tg.tagName==='TEXTAREA'||tg.tagName==='SELECT')) return;
   if(e.key==='Enter'){const nx=view.querySelector('[data-next]'); if(nx&&!(tg&&tg.tagName==='BUTTON')){e.preventDefault();nx.click()} return}
   const k='abcdefgh'.indexOf(e.key.toLowerCase()); if(k<0) return;
@@ -1162,6 +1175,7 @@ function mergeState(a,b){
   const n=o=>Object.keys((o&&o.res)||{}).length;
   m.days=Object.assign({},b.days||{});
   for(const [k,v] of Object.entries(a.days||{})){const o=m.days[k]; if(!o||(v.done&&!o.done)||(!!v.done===!!o.done&&n(v)>=n(o))) m.days[k]=v;}
+  m.cleared=Object.assign({},b.cleared||{}); for(const [k,v] of Object.entries(a.cleared||{})) m.cleared[k]=Math.max(v,m.cleared[k]||0);
   m.seen=Object.assign({},b.seen||{}); for(const [k,v] of Object.entries(a.seen||{})) m.seen[k]=Math.max(v,m.seen[k]||0);
   m.topics=Object.assign({},b.topics||{}); for(const [k,v] of Object.entries(a.topics||{})){const o=m.topics[k]; if(!o||v[1]>=o[1]) m.topics[k]=v;}
   m.fc=Object.assign({},b.fc||{}); for(const [k,v] of Object.entries(a.fc||{})){const o=m.fc[k]; if(!o||(v.n||0)>(o.n||0)||((v.n||0)===(o.n||0)&&newer===a)) m.fc[k]=v;}
@@ -1392,6 +1406,69 @@ const Lab={mode:'exp',exp:null,R:null,closed:{},type:'mix',cur:null,resp:null,ea
   }
 };
 
+
+/* ---------------- OpenStax sections ---------------- */
+const OSEC=window.CW.OS||[]; const OSBY={}; OSEC.forEach(x=>{OSBY[x.id]=x});
+const OSCH={gas:['9','Gases','9-introduction'],kin:['12','Kinetics','12-introduction']};
+const osIdsOf=id=>BANK.filter(q=>q.os===id&&lvOk(q)).map(q=>q.id);
+const OSx={sec:null,R:null,closed:{},
+  secs(){return OSEC.filter(x=>x.area===P.area)},
+  start(id){const x=OSBY[id], ids=osIdsOf(id), r=rngFor('os'+id+Date.now());
+    const sh=shuffle(ids.filter(i=>BYID[i].k!=='short'),r), fr=ids.filter(i=>BYID[i].k==='short');
+    OSx.sec=id; OSx.R={title:'Section '+id+' quiz',items:sh.concat(fr),i:0,res:[],resp:[]}},
+  open(id){OSx.start(id);show('os')},
+  allIds(id){return BANK.filter(q=>q.os===id).map(q=>q.id)},
+  missedIn(id){return osIdsOf(id).filter(i=>S.missed.includes(i))},
+  retake(id){const m=OSx.missedIn(id);if(!m.length)return;OSx.sec=id;OSx.R={title:'Section '+id+' · retake missed',items:shuffle(m,rngFor('osm'+Date.now())),i:0,res:[],resp:[]};show('os')},
+  reset(id){S.cleared=S.cleared||{};OSx.allIds(id).forEach(i=>{S.cleared[i]=S.seen[i]||0;const k=S.missed.indexOf(i);if(k>=0)S.missed.splice(k,1)});save();OSx.armed=null;OSx.start(id);show('os')},
+  bar(x){
+    const ids=osIdsOf(x.id), b=barOf(ids), miss=OSx.missedIn(x.id), c=el('div','card osbar');
+    const t=el('p','tally');t.innerHTML=`Section ${esc(x.id)}: <b>${b.g}</b> right · <b>${miss.length}</b> to retake · ${ids.length-b.g-b.r} not tried`;c.append(t);
+    const bs=el('div','btns');
+    const r=el('button','btn',miss.length?`Retake missed (${miss.length})`:'No missed questions');r.type='button';r.disabled=!miss.length;r.addEventListener('click',()=>OSx.retake(x.id));
+    const n=el('button','btn ghost','Start full quiz');n.type='button';n.addEventListener('click',()=>{OSx.start(x.id);show('os')});
+    const armed=OSx.armed===x.id, z=el('button',armed?'btn danger':'btn quiet',armed?'Tap again to clear this section':'Reset section');z.type='button';
+    z.addEventListener('click',()=>{if(OSx.armed===x.id)OSx.reset(x.id);else{OSx.armed=x.id;show('os')}});
+    bs.append(r,n,z);c.append(bs);
+    if(armed)c.append(el('p','small','This clears your right and missed marks for this section only. Other sections and topics stay.'));
+    return c;
+  },
+  credit(){const p=el('p','small oscredit');const c=OSCH[P.area]||OSCH.gas;p.innerHTML='Section notes and quizzes are written for this app and follow <a href="https://openstax.org/books/chemistry-2e/pages/'+c[2]+'" target="_blank" rel="noopener">OpenStax Chemistry 2e, Chapter '+c[0]+'</a> (© Rice University, <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a>). Read the book free online.';return p},
+  picker(pk){
+    const list=OSx.secs();
+    if(!list.length){pk.append(el('h2',null,'OpenStax'));pk.append(el('p','small','No OpenStax sections for this topic yet.'));return}
+    const all=list.flatMap(x=>osIdsOf(x.id)), b=barOf(all);
+    const ch=OSCH[P.area]||['',AREAS[P.area].name];
+    pickerHead(pk,'OpenStax Ch. '+ch[0]+' · '+ch[1],`<b>${list.length}</b> sections · <b>${b.g}</b> of ${b.t} questions right`,b.html);
+    const pl=el('div','plist');
+    list.forEach(x=>{const ids=osIdsOf(x.id),bb=barOf(ids),nc=ids.filter(i=>BYID[i].k==='num').length;
+      pl.append(pitem(x.id+'  '+plain(x.title),`${ids.length} questions · ${nc} calculations`,`${bb.g}/${bb.t}`,bb.html,OSx.sec===x.id,()=>{OSx.armed=null;OSx.open(x.id)}))});
+    pk.append(pl); pk.append(OSx.credit());
+  },
+  sheet(x){
+    const d=el('details','card xsheet'); d.open=!OSx.closed[x.id];
+    d.addEventListener('toggle',()=>{OSx.closed[x.id]=!d.open});
+    const sm=el('summary'); const hd=el('div','xhead');
+    hd.append(el('span','eyebrow','OpenStax Chemistry 2e · Section '+x.id),rt('h2','card-title',x.title));
+    sm.append(hd,el('span','xtoggle','')); d.append(sm);
+    const body=el('div','xbody');
+    body.append(el('div','flabel','Key ideas'));const ul=el('ul');x.ideas.forEach(t=>ul.append(rt('li',null,t)));body.append(ul);
+    body.append(el('div','flabel','Key equations'));
+    const eq=el('div','oseqs');x.eqs.forEach(([a,f])=>{const r=el('div','oseq');r.append(el('span','oslab',a),rt('div','formula',f));eq.append(r)});body.append(eq);
+    const a=el('a','btn ghost small oslink','Read section '+x.id+' on openstax.org ↗');a.href=x.url;a.target='_blank';a.rel='noopener';
+    const lk=el('div','btns');lk.append(a);body.append(lk);
+    d.append(body); return d;
+  },
+  render(){
+    const list=OSx.secs();
+    if(!list.length){view.append(emptyCard('No OpenStax sections for this topic yet.','OpenStax'));return}
+    if(!OSx.sec||!OSBY[OSx.sec]||OSBY[OSx.sec].area!==P.area||!OSx.R) OSx.start(OSx.sec&&OSBY[OSx.sec]&&OSBY[OSx.sec].area===P.area?OSx.sec:list[0].id);
+    const x=OSBY[OSx.sec]; view.append(OSx.bar(x)); view.append(OSx.sheet(x));
+    const i=list.findIndex(s=>s.id===x.id), nxt=list[i+1];
+    roundView(OSx.R,{eyebrow:'OpenStax '+x.id,empty:'No questions for this section at this level. Switch to All levels.',set:R=>{OSx.R=R},
+      nextLabel:nxt?'Next section ('+nxt.id+')':null,nextFn:()=>nxt&&OSx.open(nxt.id)});
+  }
+};
 /* ---------------- Mock test ---------------- */
 const ROMAN=['I','II','III','IV'];
 const PARTS=[['mc','A · Multiple choice'],['tf','B · True or false'],['num','C · Calculations'],['short','D · Free response']];
@@ -1524,8 +1601,9 @@ const Progress={confirm:false,
     const nT=tour.reduce((x,[k])=>x+bySrc[k],0), nLab=BANK.filter(q=>q.lab).length, LB=window.CW.LABS||[];
     d.append(el('div','flabel','Where the questions come from')); d.lastChild.style.marginTop='12px';
     const ul3=el('ul');ul3.append(el('li',null,`Rewritten from ${tour.length} past tournament tests: ${nT}`));
-    Object.entries(SRC).filter(([k,v])=>!v.t&&bySrc[k]).forEach(([k,v])=>ul3.append(el('li',null,`${v.label} (original): ${bySrc[k]}`)));
+    Object.entries(SRC).filter(([k,v])=>!v.t&&!v.os&&bySrc[k]).forEach(([k,v])=>ul3.append(el('li',null,`${v.label} (original): ${bySrc[k]}`)));
     if(LB.length) ul3.append(el('li',null,`Lab experiments: ${LB.length}, with ${nLab} questions`));
+    const nOS=BANK.filter(q=>q.os).length; if(nOS) ul3.append(el('li',null,`OpenStax Chemistry 2e section quizzes: ${(window.CW.OS||[]).length} sections, ${nOS} questions`));
     d.append(ul3);
     if(tour.length){const dt=el('details','srclist');dt.append(el('summary',null,'Show the tournaments'));const ul4=el('ul');tour.forEach(([k,v])=>ul4.append(el('li',null,`${v.label}: ${bySrc[k]}`)));dt.append(ul4);d.append(dt)}
     g.append(d);
