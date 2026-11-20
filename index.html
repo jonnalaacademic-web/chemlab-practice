@@ -391,6 +391,8 @@ body.osmode #areaSeg, body.osmode .seg:has(#lvB) { display: none; }
 .oxpaper .qhead { justify-content: flex-start; }
 .oxpaper .qmeta { flex-direction: row-reverse; gap: 8px; }
 .oxpaper .qnum { font-family: var(--font-mono); font-weight: 700; font-size: 1.05rem; color: var(--ink); }
+.bookseg { display: flex; width: 100%; margin-bottom: 12px; }
+.bookseg button { flex: 1; }
 </style>
 
 </head>
@@ -426,8 +428,7 @@ body.osmode #areaSeg, body.osmode .seg:has(#lvB) { display: none; }
       <button class="tab" role="tab" id="tab-today" data-view="today">Daily set</button>
       <button class="tab" role="tab" id="tab-practice" data-view="practice">Stations</button>
       <button class="tab" role="tab" id="tab-lab" data-view="lab">Lab tasks</button>
-      <button class="tab" role="tab" id="tab-os" data-view="os">OpenStax <span class="tmr" id="osTimer"></span></button>
-      <button class="tab" role="tab" id="tab-zum" data-view="zum">Zumdahl <span class="tmr" id="zumTimer"></span></button>
+      <button class="tab" role="tab" id="tab-books" data-view="books">Textbooks <span class="tmr" id="booksTimer"></span></button>
       <button class="tab" role="tab" id="tab-cards" data-view="cards">Flashcards</button>
       <button class="tab" role="tab" id="tab-review" data-view="review">Review missed <span class="count" id="missCount" hidden>0</span></button>
       <button class="tab" role="tab" id="tab-mock" data-view="mock">Mock test <span class="tmr" id="tabTimer"></span></button>
@@ -879,12 +880,12 @@ document.querySelectorAll('#areaSeg button').forEach(b=>b.addEventListener('clic
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>show(t.dataset.view)));
 function updateMiss(){const n=S.missed.filter(id=>BYID[id]&&lvOk(BYID[id])).length;const e=document.getElementById('missCount');if(e){e.hidden=!n;e.textContent=n}}
 function show(v){
-  current=v; document.body.classList.toggle('osmode',v==='os'||v==='zum'); document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.view===v?'true':'false'));
+  current=v; document.body.classList.toggle('osmode',v==='books'); document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.view===v?'true':'false'));
   updateStreak(); updateMiss();
   view.innerHTML=''; modeHead.innerHTML='';
   const full=FULL.includes(v); pickerEl.hidden=full; mainEl.classList.toggle('full',full);
-  if(!full) keepPickerScroll(pickerEl,()=>{pickerEl.innerHTML='';({practice:Practice.picker,review:Review.picker,lab:Lab.picker,os:OSx.picker,zum:ZUMx.picker,cards:Cards.picker})[v](pickerEl)});
-  ({today:Today.render,practice:Practice.render,review:Review.render,lab:Lab.render,os:OSx.render,zum:ZUMx.render,mock:Mock.render,progress:Progress.render,cards:Cards.render})[v]();
+  if(!full) keepPickerScroll(pickerEl,()=>{pickerEl.innerHTML='';({practice:Practice.picker,review:Review.picker,lab:Lab.picker,books:Books.picker,cards:Cards.picker})[v](pickerEl)});
+  ({today:Today.render,practice:Practice.render,review:Review.render,lab:Lab.render,books:Books.render,mock:Mock.render,progress:Progress.render,cards:Cards.render})[v]();
 }
 function updateStreak(){
   let n=0; const d=new Date();
@@ -1434,10 +1435,11 @@ const Lab={mode:'exp',exp:null,R:null,closed:{},type:'mix',cur:null,resp:null,ea
 /* ---------------- OpenStax section tests (same layout as the A&P app) ---------------- */
 const ALLSEC=window.CW.OS||[]; const OSBY={}; ALLSEC.forEach(x=>{OSBY[x.id]=x});
 const dnum=x=>x.num||x.id;
+const BOOK_TABS=[];
 const OX_TYPES=[['mc','Multiple choice'],['multi','Select all that apply'],['tf','True or false'],['fill','One-word answer'],['num','Calculations'],['short','Free response']];
 function bookTab(B){
 const OSEC=ALLSEC.filter(x=>(x.book||'os')===B.key), OSCH=B.chapters, MY=new Set(OSEC.map(x=>x.id));
-const OSx={notesClosed:{},sec:null,timed:true,tick:null,filter:'all',open:{},armed:null,
+const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},sec:null,timed:true,tick:null,filter:'all',open:{},armed:null,
   st(){S.ox=S.ox||{};return S.ox},
   ensureSec(){if(!OSx.sec||!MY.has(OSx.sec)){const f=OSEC.find(x=>x.area===P.area)||OSEC[0];OSx.sec=P[B.pk]&&MY.has(P[B.pk])?P[B.pk]:f&&f.id}},
   pick(id){OSx.sec=id;P[B.pk]=id;saveP();OSx.filter='all';OSx.armed=null},
@@ -1472,7 +1474,7 @@ const OSx={notesClosed:{},sec:null,timed:true,tick:null,filter:'all',open:{},arm
     const run=OSx.running(); const tt=document.getElementById(B.timerId);
     run.forEach(([id,r])=>{if(Date.now()>=r.endAt) OSx.submit(id)});
     const cur=OSx.rec(OSx.sec), live=cur&&cur.phase==='run'&&cur.endAt?cur:(OSx.running()[0]||[])[1];
-    if(tt) tt.textContent=live?OSx.fmt(Math.max(0,live.endAt-Date.now())):'';
+    if(tt){if(live) tt.textContent=OSx.fmt(Math.max(0,live.endAt-Date.now())); else if(!BOOK_TABS.some(b=>b!==OSx&&b.running().length)) tt.textContent='';}
     const c=document.getElementById('oxclock'); if(c&&cur&&cur.phase==='run'){if(cur.endAt){const left=Math.max(0,cur.endAt-Date.now());c.textContent=OSx.fmt(left);c.classList.toggle('low',left<3*60000)}else c.textContent='No timer'}
   },
   status(id){const r=OSx.rec(id),n=OSx.allIds(id).length;
@@ -1613,17 +1615,31 @@ const OSx={notesClosed:{},sec:null,timed:true,tick:null,filter:'all',open:{},arm
     rv.append(sg, OSx.paperBody(r,'review',OSx.filter)); view.append(rv, OSx.notes(x));
   }
 };
+BOOK_TABS.push(OSx);
 return OSx;
 }
-const OSx=bookTab({key:'os',view:'os',pk:'oxSec',timerId:'osTimer',short:'OpenStax',bookName:'OpenStax Chemistry 2e',
+const OSx=bookTab({key:'os',label:'OpenStax',view:'books',pk:'oxSec',timerId:'booksTimer',short:'OpenStax',bookName:'OpenStax Chemistry 2e',
   desc:'Quizzes for each section of the OpenStax Chemistry 2e chapters on gases and kinetics.',
   chapters:[['gas','9','Gases'],['kin','12','Kinetics']],
   credit:'Section notes and quizzes are written for this app and follow <a href="https://openstax.org/books/chemistry-2e/pages/9-introduction" target="_blank" rel="noopener">OpenStax Chemistry 2e</a> (© Rice University, <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a>). Read the book free online.'});
-const ZUMx=bookTab({key:'zum',view:'zum',pk:'zumSec',timerId:'zumTimer',short:'Zumdahl',bookName:'Zumdahl Chemistry 8e',
+const ZUMx=bookTab({key:'zum',label:'Zumdahl',view:'books',pk:'zumSec',timerId:'booksTimer',short:'Zumdahl',bookName:'Zumdahl Chemistry 8e',
   desc:'Quizzes for each section of the Zumdahl & Zumdahl Chemistry (8th ed.) chapters on gases and chemical kinetics, plus a final review for each chapter.',
   chapters:[['gas','5','Gases'],['kin','12','Chemical Kinetics']],
   credit:'Section titles follow Zumdahl &amp; Zumdahl, <i>Chemistry</i>, 8th ed. (Cengage, 2010). The notes and questions are written for this app; no text from the book is reproduced. Final-review questions are modeled on the book’s end-of-chapter exercises with new wording and numbers.'});
-setTimeout(()=>{try{OSx.ensureTick();ZUMx.ensureTick()}catch(e){}},0);
+/* one Textbooks tab: book switch at the top of the sidebar */
+const Books={
+  cur(){return BOOK_TABS.find(b=>b.key===P.book)||BOOK_TABS[0]},
+  set(k){P.book=k;saveP();show('books');window.scrollTo({top:0})},
+  picker(pk){
+    const sg=el('div','seg bookseg');sg.setAttribute('role','group');sg.setAttribute('aria-label','Textbook');
+    BOOK_TABS.forEach(b=>{
+      const bt=el('button',null,b.label+(b.running().length?' ⏱':''));bt.type='button';bt.setAttribute('aria-pressed',Books.cur()===b?'true':'false');
+      bt.title=b.bookName;bt.addEventListener('click',()=>Books.set(b.key));sg.append(bt)});
+    pk.append(sg); Books.cur().picker(pk);
+  },
+  render(){Books.cur().render()}
+};
+setTimeout(()=>{try{BOOK_TABS.forEach(b=>b.ensureTick())}catch(e){}},0);
 /* ---------------- Mock test ---------------- */
 const ROMAN=['I','II','III','IV'];
 const PARTS=[['mc','A · Multiple choice'],['tf','B · True or false'],['num','C · Calculations'],['short','D · Free response']];
