@@ -427,6 +427,7 @@ body.osmode #areaSeg, body.osmode .seg:has(#lvB) { display: none; }
       <button class="tab" role="tab" id="tab-practice" data-view="practice">Stations</button>
       <button class="tab" role="tab" id="tab-lab" data-view="lab">Lab tasks</button>
       <button class="tab" role="tab" id="tab-os" data-view="os">OpenStax <span class="tmr" id="osTimer"></span></button>
+      <button class="tab" role="tab" id="tab-zum" data-view="zum">Zumdahl <span class="tmr" id="zumTimer"></span></button>
       <button class="tab" role="tab" id="tab-cards" data-view="cards">Flashcards</button>
       <button class="tab" role="tab" id="tab-review" data-view="review">Review missed <span class="count" id="missCount" hidden>0</span></button>
       <button class="tab" role="tab" id="tab-mock" data-view="mock">Mock test <span class="tmr" id="tabTimer"></span></button>
@@ -835,7 +836,7 @@ function feedback(q,resp){
   } else if(q.k==='short'){
     /* model shown above */
   } else fb.append(rt('p',null,q.x));
-  if(q.src&&SRC[q.src]) fb.append(el('div','from',(SRC[q.src].t?'Rewritten from: ':SRC[q.src].os?'Based on: ':'Question style: ')+SRC[q.src].label+(q.os?', section '+q.os:'')));
+  if(q.src&&SRC[q.src]) fb.append(el('div','from',(SRC[q.src].t?'Rewritten from: ':SRC[q.src].os?'Based on: ':'Question style: ')+SRC[q.src].label+(q.os?(()=>{const n=((window.CW.OS||[]).find(x=>x.id===q.os)||{}).num||q.os;return /^Ch/.test(n)?', chapter final review':', section '+n})():'')));
   if(q.lab&&current!=='lab'&&window.CW.LABS){const L=window.CW.LABS.find(l=>l.id===q.lab);if(L)fb.append(el('div','from','Uses the experiment “'+plain(L.title)+'” (Lab tasks → Experiments).'))}
   return fb;
 }
@@ -878,12 +879,12 @@ document.querySelectorAll('#areaSeg button').forEach(b=>b.addEventListener('clic
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>show(t.dataset.view)));
 function updateMiss(){const n=S.missed.filter(id=>BYID[id]&&lvOk(BYID[id])).length;const e=document.getElementById('missCount');if(e){e.hidden=!n;e.textContent=n}}
 function show(v){
-  current=v; document.body.classList.toggle('osmode',v==='os'); document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.view===v?'true':'false'));
+  current=v; document.body.classList.toggle('osmode',v==='os'||v==='zum'); document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.view===v?'true':'false'));
   updateStreak(); updateMiss();
   view.innerHTML=''; modeHead.innerHTML='';
   const full=FULL.includes(v); pickerEl.hidden=full; mainEl.classList.toggle('full',full);
-  if(!full) keepPickerScroll(pickerEl,()=>{pickerEl.innerHTML='';({practice:Practice.picker,review:Review.picker,lab:Lab.picker,os:OSx.picker,cards:Cards.picker})[v](pickerEl)});
-  ({today:Today.render,practice:Practice.render,review:Review.render,lab:Lab.render,os:OSx.render,mock:Mock.render,progress:Progress.render,cards:Cards.render})[v]();
+  if(!full) keepPickerScroll(pickerEl,()=>{pickerEl.innerHTML='';({practice:Practice.picker,review:Review.picker,lab:Lab.picker,os:OSx.picker,zum:ZUMx.picker,cards:Cards.picker})[v](pickerEl)});
+  ({today:Today.render,practice:Practice.render,review:Review.render,lab:Lab.render,os:OSx.render,zum:ZUMx.render,mock:Mock.render,progress:Progress.render,cards:Cards.render})[v]();
 }
 function updateStreak(){
   let n=0; const d=new Date();
@@ -1431,13 +1432,15 @@ const Lab={mode:'exp',exp:null,R:null,closed:{},type:'mix',cur:null,resp:null,ea
 
 
 /* ---------------- OpenStax section tests (same layout as the A&P app) ---------------- */
-const OSEC=window.CW.OS||[]; const OSBY={}; OSEC.forEach(x=>{OSBY[x.id]=x});
-const OSCH=[['gas','9','Gases','9-introduction'],['kin','12','Kinetics','12-introduction']];
+const ALLSEC=window.CW.OS||[]; const OSBY={}; ALLSEC.forEach(x=>{OSBY[x.id]=x});
+const dnum=x=>x.num||x.id;
 const OX_TYPES=[['mc','Multiple choice'],['multi','Select all that apply'],['tf','True or false'],['fill','One-word answer'],['num','Calculations'],['short','Free response']];
-const OSx={sec:null,timed:true,tick:null,filter:'all',open:{},armed:null,
+function bookTab(B){
+const OSEC=ALLSEC.filter(x=>(x.book||'os')===B.key), OSCH=B.chapters, MY=new Set(OSEC.map(x=>x.id));
+const OSx={notesClosed:{},sec:null,timed:true,tick:null,filter:'all',open:{},armed:null,
   st(){S.ox=S.ox||{};return S.ox},
-  ensureSec(){if(!OSx.sec||!OSBY[OSx.sec]){const f=OSEC.find(x=>x.area===P.area)||OSEC[0];OSx.sec=P.oxSec&&OSBY[P.oxSec]?P.oxSec:f&&f.id}},
-  pick(id){OSx.sec=id;P.oxSec=id;saveP();OSx.filter='all';OSx.armed=null},
+  ensureSec(){if(!OSx.sec||!MY.has(OSx.sec)){const f=OSEC.find(x=>x.area===P.area)||OSEC[0];OSx.sec=P[B.pk]&&MY.has(P[B.pk])?P[B.pk]:f&&f.id}},
+  pick(id){OSx.sec=id;P[B.pk]=id;saveP();OSx.filter='all';OSx.armed=null},
   rec(id){const r=OSx.st()[id];return r&&r.phase!=='reset'?r:null},
   allIds(id){return BANK.filter(q=>q.os===id).map(q=>q.id)},
   ordered(ids,seed){const r=rngFor(seed);const by={};ids.forEach(i=>{const k=BYID[i].k;(by[k]=by[k]||[]).push(i)});return OX_TYPES.flatMap(([k])=>shuffle((by[k]||[]).slice(),r))},
@@ -1449,24 +1452,24 @@ const OSx={sec:null,timed:true,tick:null,filter:'all',open:{},armed:null,
   start(id,ids,label){
     const n=ids.length, m=OSx.mins(n), now=Date.now();
     OSx.st()[id]={phase:'run',ids:OSx.ordered(ids,'ox'+id+now),resp:ids.map(()=>null),startAt:now,endAt:OSx.timed?now+m*60000:0,mins:OSx.timed?m:0,label:label||'',at:now};
-    OSx.pick(id); OSx.armed=null; save(); OSx.ensureTick(); show('os'); window.scrollTo({top:0});
+    OSx.pick(id); OSx.armed=null; save(); OSx.ensureTick(); show(B.view); window.scrollTo({top:0});
   },
   submit(id){
     const r=OSx.rec(id); if(!r||r.phase!=='run') return;
     r.phase='done'; r.used=Math.max(1,Math.round((Date.now()-r.startAt)/60000)); r.at=Date.now(); r.recShort=[];
     r.ids.forEach((qid,i)=>{const q=BYID[qid]; if(q&&q.k!=='short') record(q,grade(q,r.resp[i]).frac)});
     r.ids.forEach((qid,i)=>{const q=BYID[qid]; if(q&&q.k==='short') r.resp[i]={text:(r.resp[i]&&r.resp[i].text)||'',hits:q.kp.map(()=>false)}});
-    save(); OSx.ensureTick(); if(current==='os'&&OSx.sec===id){show('os');window.scrollTo({top:0})}
+    save(); OSx.ensureTick(); if(current===B.view&&OSx.sec===id){show(B.view);window.scrollTo({top:0})}
   },
   reset(id){
     S.cleared=S.cleared||{}; OSx.allIds(id).forEach(i=>{S.cleared[i]=S.seen[i]||0;const k=S.missed.indexOf(i);if(k>=0)S.missed.splice(k,1)});
-    OSx.st()[id]={phase:'reset',at:Date.now()}; OSx.armed=null; save(); OSx.ensureTick(); show('os');
+    OSx.st()[id]={phase:'reset',at:Date.now()}; OSx.armed=null; save(); OSx.ensureTick(); show(B.view);
   },
-  running(){return Object.entries(OSx.st()).filter(([k,r])=>r&&r.phase==='run'&&r.endAt)},
+  running(){return Object.entries(OSx.st()).filter(([k,r])=>MY.has(k)&&r&&r.phase==='run'&&r.endAt)},
   ensureTick(){clearInterval(OSx.tick); OSx.tick=null; if(OSx.running().length){OSx.tick=setInterval(OSx.onTick,1000)} OSx.onTick()},
   fmt(ms){const m=Math.floor(ms/60000),s=Math.floor(ms%60000/1000);return `${m}:${String(s).padStart(2,'0')}`},
   onTick(){
-    const run=OSx.running(); const tt=document.getElementById('osTimer');
+    const run=OSx.running(); const tt=document.getElementById(B.timerId);
     run.forEach(([id,r])=>{if(Date.now()>=r.endAt) OSx.submit(id)});
     const cur=OSx.rec(OSx.sec), live=cur&&cur.phase==='run'&&cur.endAt?cur:(OSx.running()[0]||[])[1];
     if(tt) tt.textContent=live?OSx.fmt(Math.max(0,live.endAt-Date.now())):'';
@@ -1482,8 +1485,8 @@ const OSx={sec:null,timed:true,tick:null,filter:'all',open:{},armed:null,
   /* ---------- left panel ---------- */
   picker(pk){
     if(!OSEC.length) return; OSx.ensureSec();
-    pk.append(el('h2',null,'OpenStax Chemistry 2e'));
-    pk.append(el('p','small','Quizzes for each section of the OpenStax Chemistry 2e chapters on gases and kinetics.'));
+    pk.append(el('h2',null,B.bookName));
+    pk.append(el('p','small',B.desc));
     const curArea=OSx.sec&&OSBY[OSx.sec]?OSBY[OSx.sec].area:P.area;
     OSCH.forEach(([area,num,name])=>{
       const list=OSEC.filter(x=>x.area===area); if(!list.length) return;
@@ -1493,12 +1496,12 @@ const OSx={sec:null,timed:true,tick:null,filter:'all',open:{},armed:null,
       const pl=el('div','plist');
       list.forEach(x=>{const ids=OSx.allIds(x.id), s=OSx.status(x.id);
         const b=el('button','pitem'); b.type='button'; b.setAttribute('aria-current',OSx.sec===x.id?'true':'false');
-        b.innerHTML=`<span class="pt">${esc(x.id+' '+plain(x.title))}</span><span class="pm"><span>${ids.length} Qs · ${OSx.pts(ids)} pts</span><span class="${s.cls==='done'?'mono':''}">${esc(s.txt)}</span></span><div class="bar" aria-hidden="true"><i class="${s.cls==='run'?'p':'g'}" style="width:${s.pct.toFixed(1)}%"></i></div>`;
-        b.addEventListener('click',()=>{OSx.pick(x.id);show('os');window.scrollTo({top:0})}); pl.append(b)});
+        b.innerHTML=`<span class="pt">${esc(dnum(x)+' '+plain(x.title))}</span><span class="pm"><span>${ids.length} Qs · ${OSx.pts(ids)} pts</span><span class="${s.cls==='done'?'mono':''}">${esc(s.txt)}</span></span><div class="bar" aria-hidden="true"><i class="${s.cls==='run'?'p':'g'}" style="width:${s.pct.toFixed(1)}%"></i></div>`;
+        b.addEventListener('click',()=>{OSx.pick(x.id);show(B.view);window.scrollTo({top:0})}); pl.append(b)});
       d.append(pl); pk.append(d);
     });
     const r=OSx.rec(OSx.sec); if(r) pk.append(OSx.jumpGrid(r));
-    const c=el('p','small oscredit'); c.innerHTML='Section notes and quizzes are written for this app and follow <a href="https://openstax.org/books/chemistry-2e/pages/9-introduction" target="_blank" rel="noopener">OpenStax Chemistry 2e</a> (© Rice University, <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a>). Read the book free online.'; pk.append(c);
+    const c=el('p','small oscredit'); c.innerHTML=B.credit; pk.append(c);
   },
   jumpGrid(r){
     const d=el('details','oxjump'); d.open=true; d.append(el('summary',null,'Jump to a question'));
@@ -1514,7 +1517,7 @@ const OSx={sec:null,timed:true,tick:null,filter:'all',open:{},armed:null,
   paintJump(r){const g=document.getElementById('oxgrid'); if(!g) return; [...g.children].forEach((b,i)=>b.classList.toggle('ans',OSx.isAns(r.resp[i])))},
   /* ---------- main panel ---------- */
   render(){
-    if(!OSEC.length){view.append(emptyCard('No OpenStax sections yet.','OpenStax'));return}
+    if(!OSEC.length){view.append(emptyCard('No sections yet.',B.short));return}
     OSx.ensureSec();
     const x=OSBY[OSx.sec], r=OSx.rec(x.id);
     if(!r) return OSx.intro(x);
@@ -1522,21 +1525,23 @@ const OSx={sec:null,timed:true,tick:null,filter:'all',open:{},armed:null,
     return OSx.results(x,r);
   },
   notes(x){
-    const d=el('details','card xsheet'); d.open=false;
-    const sm=el('summary'); const hd=el('div','xhead'); hd.append(el('span','eyebrow','Section notes'),el('h2','card-title','Key ideas and equations')); sm.append(hd,el('span','xtoggle','')); d.append(sm);
+    const d=el('details','card xsheet oxnotes'); d.open=!OSx.notesClosed[x.id]; d.addEventListener('toggle',()=>{OSx.notesClosed[x.id]=!d.open});
+    const sm=el('summary'); const hd=el('div','xhead'); hd.append(el('span','eyebrow',(x.num&&/^Ch/.test(x.num)?x.num:'Section '+dnum(x))+' notes · '+B.bookName),el('h2','card-title','Key ideas and key equations')); sm.append(hd,el('span','xtoggle','')); d.append(sm);
     const body=el('div','xbody');
     body.append(el('div','flabel','Key ideas'));const ul=el('ul');x.ideas.forEach(t=>ul.append(rt('li',null,t)));body.append(ul);
     body.append(el('div','flabel','Key equations'));
     const eq=el('div','oseqs');x.eqs.forEach(([a,f])=>{const rr=el('div','oseq');rr.append(el('span','oslab',a),rt('div','formula',f));eq.append(rr)});body.append(eq);
-    const a=el('a','btn ghost small oslink','Read section '+x.id+' on openstax.org ↗');a.href=x.url;a.target='_blank';a.rel='noopener';
-    const lk=el('div','btns');lk.append(a);body.append(lk); d.append(body); return d;
+    if(x.url){const a=el('a','btn ghost small oslink','Read section '+dnum(x)+' on openstax.org ↗');a.href=x.url;a.target='_blank';a.rel='noopener';
+      const lk=el('div','btns');lk.append(a);body.append(lk)}
+    else if(x.ref){body.append(el('div','flabel','In your book'));body.append(rt('p','small',x.ref))}
+    d.append(body); return d;
   },
   intro(x){
     const ids=OSx.allIds(x.id), qs=ids.map(i=>BYID[i]), n=ids.length, p=OSx.pts(ids);
     const types=OX_TYPES.filter(([k])=>qs.some(q=>q.k===k)).map(([,t])=>t);
     const auto=qs.filter(q=>q.k!=='short'), wr=qs.filter(q=>q.k==='short'), nc=qs.filter(q=>q.k==='num').length;
-    const c=el('div','card qcard oxintro'); c.append(el('span','eyebrow','OpenStax'), rt('h1','card-title',x.id+' '+x.title));
-    c.append(el('p',null,'Practice quiz for this OpenStax section, written Science Olympiad style. Read the section first, or open the notes below.'));
+    const c=el('div','card qcard oxintro'); c.append(el('span','eyebrow',B.short), rt('h1','card-title',dnum(x)+' '+x.title));
+    c.append(el('p',null,(/^Ch/.test(dnum(x))?'Mixed review of the whole chapter, ':'Practice quiz for this '+B.short+' section, ')+'written Science Olympiad style. Review the key ideas and equations below before you start.'));
     const ul=el('ul');
     const li1=el('li');li1.innerHTML=`<b>${n} questions, ${p} points</b> · ${esc(types.join(', '))}`;ul.append(li1);
     ul.append(el('li',null,`${auto.length} are graded for you (multiple choice, select-all, true/false, one-word and calculations). Select-all questions give partial credit.`));
@@ -1546,7 +1551,7 @@ const OSx={sec:null,timed:true,tick:null,filter:'all',open:{},armed:null,
     c.append(ul);
     c.append(el('div','flabel','Timer'));
     const sg=el('div','seg');sg.setAttribute('role','group');sg.setAttribute('aria-label','Timer');
-    [[true,`${OSx.mins(n)}-minute timer`],[false,'No timer']].forEach(([v,t])=>{const b=el('button',null,t);b.type='button';b.setAttribute('aria-pressed',OSx.timed===v?'true':'false');b.addEventListener('click',()=>{OSx.timed=v;show('os')});sg.append(b)});
+    [[true,`${OSx.mins(n)}-minute timer`],[false,'No timer']].forEach(([v,t])=>{const b=el('button',null,t);b.type='button';b.setAttribute('aria-pressed',OSx.timed===v?'true':'false');b.addEventListener('click',()=>{OSx.timed=v;show(B.view)});sg.append(b)});
     c.append(sg);
     const act=el('div','btns');const b=el('button','btn','Start the test');b.type='button';b.addEventListener('click',()=>OSx.start(x.id,ids));act.append(b);c.append(act);
     view.append(c, OSx.notes(x));
@@ -1560,7 +1565,7 @@ const OSx={sec:null,timed:true,tick:null,filter:'all',open:{},armed:null,
       const nn=el('button','btn ghost','Keep working');nn.type='button';nn.addEventListener('click',()=>{rt2.innerHTML='';rt2.append(sb)});rt2.append(y,nn)};
     sb.addEventListener('click',ask); rt2.append(sb); bar.append(lc,rt2); view.append(bar);
     const paper=el('div','card paper oxpaper'); const ph=el('div','paperhead');
-    ph.append(el('span','eyebrow',x.id+' '+plain(x.title)+(r.label?' · '+r.label:'')), rt('h1','card-title',x.title),
+    ph.append(el('span','eyebrow',dnum(x)+' '+plain(x.title)+(r.label?' · '+r.label:'')), rt('h1','card-title',x.title),
       el('p','small',`${r.ids.length} questions · ${OSx.pts(r.ids)} points${r.mins?` · ${r.mins} minutes`:''}. Answer in any order.${r.mins?' The test submits itself when time runs out.':''}`));
     paper.append(ph, OSx.paperBody(r,'exam'));
     const a2=el('div','btns'); const sb2=el('button','btn','Submit test'); sb2.type='button'; sb2.addEventListener('click',()=>{window.scrollTo({top:0});ask()}); a2.append(sb2); paper.append(a2);
@@ -1590,7 +1595,7 @@ const OSx={sec:null,timed:true,tick:null,filter:'all',open:{},armed:null,
     if(b)b.textContent=`${OSx.r1(t.e)} of ${t.p} points`;const ti=document.getElementById('oxtiles');if(ti)ti.replaceWith(OSx.tiles(r))},
   results(x,r){
     const t=OSx.totals(r); const c=el('div','card qcard');
-    c.append(el('span','eyebrow',`${x.id} ${plain(x.title)}${r.label?' · '+r.label:''} · Results · ${r.used||1} min`));
+    c.append(el('span','eyebrow',`${dnum(x)} ${plain(x.title)}${r.label?' · '+r.label:''} · Results · ${r.used||1} min`));
     const sc=el('p','score mono',(t.p?Math.round(t.e/t.p*100):0)+'%'); sc.id='oxscore'; const pts=el('p',null,`${OSx.r1(t.e)} of ${t.p} points`); pts.id='oxpts';
     c.append(sc,pts,OSx.tiles(r));
     if(t.wp) c.append(el('p','small','Written answers start at 0. Tick the key points you hit under each free-response question below; your score updates as you go.'));
@@ -1598,17 +1603,27 @@ const OSx={sec:null,timed:true,tick:null,filter:'all',open:{},armed:null,
     const m=el('button','btn',miss.length?`Retake missed only (${miss.length})`:'Nothing missed');m.type='button';m.disabled=!miss.length;m.addEventListener('click',()=>OSx.start(x.id,miss,'Retake missed'));
     const a=el('button','btn ghost','Retake this test');a.type='button';a.addEventListener('click',()=>OSx.start(x.id,OSx.allIds(x.id)));
     const armed=OSx.armed===x.id, z=el('button',armed?'btn danger':'btn quiet',armed?'Tap again to reset':'Reset section');z.type='button';
-    z.addEventListener('click',()=>{if(OSx.armed===x.id)OSx.reset(x.id);else{OSx.armed=x.id;show('os')}});
+    z.addEventListener('click',()=>{if(OSx.armed===x.id)OSx.reset(x.id);else{OSx.armed=x.id;show(B.view)}});
     act.append(m,a,z); c.append(act);
     if(armed) c.append(el('p','small','Reset clears this section’s test and its right/missed marks. Other sections stay.'));
     view.append(c);
     const rv=el('div','card paper oxpaper'); rv.append(el('span','eyebrow','Answer review'), el('p','small','Green is the correct answer, red is a wrong pick. For written answers, compare with the model answer and tick the points you made.'));
     const sg=el('div','seg');sg.setAttribute('role','group');sg.setAttribute('aria-label','Show');
-    [['all','All questions'],['missed','Missed or partial'],['written','My written answers']].forEach(([k,tx])=>{const b=el('button',null,tx);b.type='button';b.setAttribute('aria-pressed',OSx.filter===k?'true':'false');b.addEventListener('click',()=>{OSx.filter=k;show('os')});sg.append(b)});
+    [['all','All questions'],['missed','Missed or partial'],['written','My written answers']].forEach(([k,tx])=>{const b=el('button',null,tx);b.type='button';b.setAttribute('aria-pressed',OSx.filter===k?'true':'false');b.addEventListener('click',()=>{OSx.filter=k;show(B.view)});sg.append(b)});
     rv.append(sg, OSx.paperBody(r,'review',OSx.filter)); view.append(rv, OSx.notes(x));
   }
 };
-setTimeout(()=>{try{OSx.ensureTick()}catch(e){}},0);
+return OSx;
+}
+const OSx=bookTab({key:'os',view:'os',pk:'oxSec',timerId:'osTimer',short:'OpenStax',bookName:'OpenStax Chemistry 2e',
+  desc:'Quizzes for each section of the OpenStax Chemistry 2e chapters on gases and kinetics.',
+  chapters:[['gas','9','Gases'],['kin','12','Kinetics']],
+  credit:'Section notes and quizzes are written for this app and follow <a href="https://openstax.org/books/chemistry-2e/pages/9-introduction" target="_blank" rel="noopener">OpenStax Chemistry 2e</a> (© Rice University, <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a>). Read the book free online.'});
+const ZUMx=bookTab({key:'zum',view:'zum',pk:'zumSec',timerId:'zumTimer',short:'Zumdahl',bookName:'Zumdahl Chemistry 8e',
+  desc:'Quizzes for each section of the Zumdahl & Zumdahl Chemistry (8th ed.) chapters on gases and chemical kinetics, plus a final review for each chapter.',
+  chapters:[['gas','5','Gases'],['kin','12','Chemical Kinetics']],
+  credit:'Section titles follow Zumdahl &amp; Zumdahl, <i>Chemistry</i>, 8th ed. (Cengage, 2010). The notes and questions are written for this app; no text from the book is reproduced. Final-review questions are modeled on the book’s end-of-chapter exercises with new wording and numbers.'});
+setTimeout(()=>{try{OSx.ensureTick();ZUMx.ensureTick()}catch(e){}},0);
 /* ---------------- Mock test ---------------- */
 const ROMAN=['I','II','III','IV'];
 const PARTS=[['mc','A · Multiple choice'],['tf','B · True or false'],['num','C · Calculations'],['short','D · Free response']];
@@ -1743,7 +1758,9 @@ const Progress={confirm:false,
     const ul3=el('ul');ul3.append(el('li',null,`Rewritten from ${tour.length} past tournament tests: ${nT}`));
     Object.entries(SRC).filter(([k,v])=>!v.t&&!v.os&&bySrc[k]).forEach(([k,v])=>ul3.append(el('li',null,`${v.label} (original): ${bySrc[k]}`)));
     if(LB.length) ul3.append(el('li',null,`Lab experiments: ${LB.length}, with ${nLab} questions`));
-    const nOS=BANK.filter(q=>q.os).length; if(nOS) ul3.append(el('li',null,`OpenStax Chemistry 2e section quizzes: ${(window.CW.OS||[]).length} sections, ${nOS} questions`));
+    const OSL=window.CW.OS||[], bk=id=>((OSL.find(x=>x.id===id)||{}).book||'os'); const nOS=BANK.filter(q=>q.os&&bk(q.os)==='os').length, nZ=BANK.filter(q=>q.os&&bk(q.os)==='zum').length;
+    if(nOS) ul3.append(el('li',null,`OpenStax Chemistry 2e section quizzes: ${OSL.filter(x=>(x.book||'os')==='os').length} sections, ${nOS} questions`));
+    if(nZ) ul3.append(el('li',null,`Zumdahl Chemistry 8e section quizzes: ${OSL.filter(x=>x.book==='zum').length} sections (with chapter final reviews), ${nZ} questions`));
     d.append(ul3);
     if(tour.length){const dt=el('details','srclist');dt.append(el('summary',null,'Show the tournaments'));const ul4=el('ul');tour.forEach(([k,v])=>ul4.append(el('li',null,`${v.label}: ${bySrc[k]}`)));dt.append(ul4);d.append(dt)}
     g.append(d);
