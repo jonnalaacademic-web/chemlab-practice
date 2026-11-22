@@ -1234,6 +1234,7 @@ function mergeState(a,b){
   m.mocks=[...mm.values()].sort((x,y)=>(x.t||0)-(y.t||0)||String(x.d).localeCompare(String(y.d)));
   m.missed=((newer.missed)||[]).slice();
   m.ox=Object.assign({},b.ox||{}); for(const [k,v] of Object.entries(a.ox||{})){const o=m.ox[k]; if(!o||(v.at||0)>=(o.at||0)) m.ox[k]=v;}
+  m.oxread=Object.assign({},b.oxread||{}); for(const [k,v] of Object.entries(a.oxread||{})){const o=m.oxread[k]; if(!o||(v.at||0)>=(o.at||0)) m.oxread[k]=v;}
   return m;
 }
 const Sync={SK:'chemlab-stations-sync',meta:{code:'',name:'',isNew:true,welcomed:false,dirty:false,at:0},state:'idle',err:'',timer:null,busy:false,ver:0,lastPush:0,lastPull:0,
@@ -1464,7 +1465,7 @@ const BOOK_TABS=[];
 const OX_TYPES=[['mc','Multiple choice'],['multi','Select all that apply'],['tf','True or false'],['fill','One-word answer'],['num','Calculations'],['short','Free response']];
 function bookTab(B){
 const OSEC=ALLSEC.filter(x=>(x.book||'os')===B.key), OSCH=B.chapters, MY=new Set(OSEC.map(x=>x.id));
-const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},sec:null,timed:true,tick:null,filter:'all',open:{},armed:null,
+const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},pane:{},sec:null,timed:true,tick:null,filter:'all',open:{},armed:null,
   st(){S.ox=S.ox||{};return S.ox},
   ensureSec(){if(!OSx.sec||!MY.has(OSx.sec)){const f=OSEC.find(x=>x.area===P.area)||OSEC[0];OSx.sec=P[B.pk]&&MY.has(P[B.pk])?P[B.pk]:f&&f.id}},
   pick(id){OSx.sec=id;P[B.pk]=id;saveP();OSx.filter='all';OSx.armed=null},
@@ -1487,8 +1488,11 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},sec:null,t
   start(id,ids,label){
     const n=ids.length, m=OSx.mins(n), now=Date.now();
     OSx.st()[id]={phase:'run',ids:OSx.ordered(ids,'ox'+id+now),resp:ids.map(()=>null),startAt:now,endAt:OSx.timed?now+m*60000:0,mins:OSx.timed?m:0,label:label||'',at:now};
-    OSx.pick(id); OSx.armed=null; save(); OSx.ensureTick(); show(B.view); window.scrollTo({top:0});
+    OSx.pane[id]='test'; OSx.pick(id); OSx.armed=null; save(); OSx.ensureTick(); show(B.view); window.scrollTo({top:0});
   },
+  rd(){S.oxread=S.oxread||{};return S.oxread},
+  isRead(id){const v=OSx.rd()[id];return !!(v&&v.v)},
+  setRead(id,v){OSx.rd()[id]={v:v?1:0,at:Date.now()};save()},
   submit(id){
     const r=OSx.rec(id); if(!r||r.phase!=='run') return;
     const end=r.endAt?Math.min(Date.now(),r.endAt):Math.min(Date.now(),r.at||Date.now()); r.phase='done'; r.used=Math.max(1,Math.round((end-r.startAt)/60000)); r.at=Date.now(); r.recShort=[];
@@ -1533,7 +1537,7 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},sec:null,t
       const pl=el('div','plist');
       list.forEach(x=>{const ids=OSx.allIds(x.id), s=OSx.status(x.id);
         const b=el('button','pitem'); b.type='button'; b.setAttribute('aria-current',OSx.sec===x.id?'true':'false');
-        b.innerHTML=`<span class="pt">${esc(dnum(x)+' '+plain(x.title))}</span><span class="pm"><span>${ids.length} Qs · ${OSx.pts(ids)} pts</span><span class="${s.cls==='done'?'mono':''}">${esc(s.txt)}</span></span><div class="bar" aria-hidden="true"><i class="${s.cls==='run'?'p':'g'}" style="width:${s.pct.toFixed(1)}%"></i></div>`;
+        b.innerHTML=`<span class="pt">${esc(dnum(x)+' '+plain(x.title))}</span><span class="pm"><span>${ids.length} Qs · ${OSx.pts(ids)} pts</span><span class="${s.cls==='done'?'mono':''}">${esc(!s.cls&&x.study&&OSx.isRead(x.id)?'Notes read ✓':s.txt)}</span></span><div class="bar" aria-hidden="true"><i class="${s.cls==='run'?'p':'g'}" style="width:${s.pct.toFixed(1)}%"></i></div>`;
         b.addEventListener('click',()=>{OSx.pick(x.id);show(B.view);window.scrollTo({top:0})}); pl.append(b)});
       d.append(pl); pk.append(d);
     });
@@ -1557,28 +1561,45 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},sec:null,t
     if(!OSEC.length){view.append(emptyCard('No sections yet.',B.short));return}
     OSx.ensureSec();
     const x=OSBY[OSx.sec], r=OSx.rec(x.id);
+    const panes=x.study?['notes','ideas','test']:['ideas','test'];
+    let pane=OSx.pane[x.id]; if(!panes.includes(pane)) pane=r?'test':(x.study&&!OSx.isRead(x.id)?'notes':x.study?'test':'ideas');
+    view.append(OSx.head(x,r,pane,panes));
+    if(pane==='notes') return view.append(OSx.study(x));
+    if(pane==='ideas') return view.append(OSx.notes(x));
     if(!r) return OSx.intro(x);
     if(r.phase==='run') return OSx.exam(x,r);
     return OSx.results(x,r);
   },
+  go(id,p){OSx.pane[id]=p;show(B.view);window.scrollTo({top:0})},
+  head(x,r,pane,panes){
+    if(!document.getElementById('oxstepcss')){const st=document.createElement('style');st.id='oxstepcss';st.textContent=`.gsteps{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.gstep{flex:1 1 160px;display:flex;justify-content:space-between;gap:8px;align-items:baseline;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:9px 12px;font-weight:600;cursor:pointer;font:inherit;font-weight:600}.gstep[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}.oxhead .card-title{margin:2px 0 0}.oxdone{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:18px}`;document.head.append(st)}
+    const c=el('div','card oxhead'); const s=OSx.status(x.id);
+    c.append(el('span','eyebrow',(/^Ch/.test(dnum(x))?dnum(x)+' · Final review':'Section '+dnum(x))+' · '+B.bookName), rt('h2','card-title',x.title));
+    const lab={notes:['Study notes',OSx.isRead(x.id)?'✓ read':'not read'],ideas:['Key ideas',x.ideas.length+' ideas · '+x.eqs.length+' eqs'],test:['Practice test',r&&r.phase==='run'?'⏱ in progress':s.txt]};
+    const sw=el('div','gsteps'); sw.setAttribute('role','tablist');
+    panes.forEach((k,i)=>{const b=el('button','gstep');b.type='button';b.setAttribute('role','tab');b.setAttribute('aria-pressed',pane===k?'true':'false');b.setAttribute('aria-selected',pane===k?'true':'false');
+      b.append(el('span',null,(i+1)+'. '+lab[k][0]),el('span','mono small',lab[k][1]));b.addEventListener('click',()=>OSx.go(x.id,k));sw.append(b)});
+    c.append(sw); return c;
+  },
   study(x){
     if(!document.getElementById('oxstudycss')){const st=document.createElement('style');st.id='oxstudycss';st.textContent=`.oxstudy .xbody h3{font-size:1rem;margin:16px 0 4px}.oxstudy .xbody p{margin:4px 0 8px;line-height:1.55}.oxstudy .sum{font-weight:600;margin:0 0 6px}.oxstudy .wx{border:1px solid var(--line,rgba(127,127,127,.3));border-left:4px solid var(--accent,#8ab4f8);border-radius:10px;padding:10px 14px;margin:10px 0}.oxstudy .wx ol{margin:6px 0 6px 18px;padding:0}.oxstudy .wx .ans{font-weight:600}.oxstudy .trap li{margin:2px 0}`;document.head.append(st)}
     const S=x.study, k='s:'+x.id;
-    const d=el('details','card xsheet oxnotes oxstudy'); d.open=!OSx.notesClosed[k]; d.addEventListener('toggle',()=>{OSx.notesClosed[k]=!d.open});
-    const sm=el('summary'); const hd=el('div','xhead'); hd.append(el('span','eyebrow',(x.num&&/^Ch/.test(x.num)?x.num:'Section '+dnum(x))+' study notes · '+B.bookName),el('h2','card-title','Learn it: '+plain(x.title))); sm.append(hd,el('span','xtoggle','')); d.append(sm);
-    const body=el('div','xbody');
+    const d=el('div','card xsheet oxnotes oxstudy');
+    const body=el('div','xbody'); body.append(el('span','eyebrow','Study notes'));
     if(S.sum) body.append(rt('p','sum',S.sum));
     (S.parts||[]).forEach(p=>{body.append(rt('h3',null,p.h)); if(p.p) body.append(rt('p',null,p.p)); if(p.li){const ul=el('ul');p.li.forEach(t=>ul.append(rt('li',null,t)));body.append(ul)}});
     if(S.wx&&S.wx.length){body.append(el('div','flabel','Worked examples'));
       S.wx.forEach((w,i)=>{const b=el('div','wx');b.append(rt('p',null,'<b>Example '+(i+1)+'.</b> ')); b.lastChild.innerHTML='<b>Example '+(i+1)+'.</b> '+chem(w.q);
         const ol=el('ol');w.s.forEach(t=>ol.append(rt('li',null,t)));b.append(ol); const an=rt('p','ans',w.a); an.innerHTML='Answer: '+chem(w.a); b.append(an); body.append(b)})}
     if(S.trap&&S.trap.length){body.append(el('div','flabel','Watch out'));const ul=el('ul','trap');S.trap.forEach(t=>ul.append(rt('li',null,t)));body.append(ul)}
-    d.append(body); return d;
+    const act=el('div','oxdone'), rd=OSx.isRead(x.id);
+    const nx=el('button','btn primary',rd?'Next: key ideas →':'Mark read & go to key ideas →');nx.type='button';nx.addEventListener('click',()=>{OSx.setRead(x.id,1);OSx.go(x.id,'ideas')});act.append(nx);
+    if(rd){const u=el('button','btn quiet','Mark as not read');u.type='button';u.addEventListener('click',()=>{OSx.setRead(x.id,0);show(B.view)});act.append(u)}
+    body.append(act); d.append(body); return d;
   },
   notes(x){
-    const d=el('details','card xsheet oxnotes'); d.open=!OSx.notesClosed[x.id]; d.addEventListener('toggle',()=>{OSx.notesClosed[x.id]=!d.open});
-    const sm=el('summary'); const hd=el('div','xhead'); hd.append(el('span','eyebrow',(x.num&&/^Ch/.test(x.num)?x.num:'Section '+dnum(x))+' notes · '+B.bookName),el('h2','card-title','Key ideas and key equations')); sm.append(hd,el('span','xtoggle','')); d.append(sm);
-    const body=el('div','xbody');
+    const d=el('div','card xsheet oxnotes');
+    const body=el('div','xbody'); body.append(el('span','eyebrow','Key ideas and key equations'));
     body.append(el('div','flabel','Key ideas'));const ul=el('ul');x.ideas.forEach(t=>ul.append(rt('li',null,t)));body.append(ul);
     body.append(el('div','flabel','Key equations'));
     const eq=el('div','oseqs');x.eqs.forEach(([a,f])=>{const rr=el('div','oseq');rr.append(el('span','oslab',a),rt('div','formula',f));eq.append(rr)});body.append(eq);
@@ -1586,14 +1607,17 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},sec:null,t
       const lk=el('div','btns');lk.append(a);body.append(lk)}
     else if(x.ref){body.append(el('div','flabel','In your book'));body.append(rt('p','small',x.ref))}
     if(x.ex&&x.ex.length){body.append(el('div','flabel','Practice in your book'));const ul2=el('ul','small');x.ex.forEach(t=>ul2.append(rt('li',null,t)));body.append(ul2)}
-    d.append(body); return d;
+    const act=el('div','oxdone'), r=OSx.rec(x.id);
+    if(x.study){const pv=el('button','btn','← Study notes');pv.type='button';pv.addEventListener('click',()=>OSx.go(x.id,'notes'));act.append(pv)}
+    const nx=el('button','btn primary',r&&r.phase==='run'?'Back to the test →':r?'See my test results →':'Go to the practice test →');nx.type='button';nx.addEventListener('click',()=>OSx.go(x.id,'test'));act.append(nx);
+    body.append(act); d.append(body); return d;
   },
   intro(x){
     const ids=OSx.allIds(x.id), qs=ids.map(i=>BYID[i]), n=ids.length, p=OSx.pts(ids);
     const types=OX_TYPES.filter(([k])=>qs.some(q=>q.k===k)).map(([,t])=>t);
     const auto=qs.filter(q=>q.k!=='short'), wr=qs.filter(q=>q.k==='short'), nc=qs.filter(q=>q.k==='num').length;
-    const c=el('div','card qcard oxintro'); c.append(el('span','eyebrow',B.short), rt('h1','card-title',dnum(x)+' '+x.title));
-    c.append(el('p',null,(/^Ch/.test(dnum(x))?'Mixed review of the whole chapter, ':'Practice quiz for this '+B.short+' section, ')+'written Science Olympiad style. Review the key ideas and equations below before you start.'));
+    const c=el('div','card qcard oxintro'); c.append(el('span','eyebrow',B.short+' · section '+dnum(x)), el('h2','card-title','Practice test'));
+    c.append(el('p',null,(/^Ch/.test(dnum(x))?'Mixed review of the whole chapter, ':'Practice quiz for this '+B.short+' section, ')+'written Science Olympiad style. '+(x.study?'Read the Study notes and Key ideas tabs first.':'Review the Key ideas tab first.')));
     const ul=el('ul');
     const li1=el('li');li1.innerHTML=`<b>${n} questions, ${p} points</b> · ${esc(types.join(', '))}`;ul.append(li1);
     ul.append(el('li',null,`${auto.length} are graded for you (multiple choice, select-all, true/false, one-word and calculations). Select-all questions give partial credit.`));
@@ -1606,7 +1630,7 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},sec:null,t
     [[true,`${OSx.mins(n)}-minute timer`],[false,'No timer']].forEach(([v,t])=>{const b=el('button',null,t);b.type='button';b.setAttribute('aria-pressed',OSx.timed===v?'true':'false');b.addEventListener('click',()=>{OSx.timed=v;show(B.view)});sg.append(b)});
     c.append(sg);
     const act=el('div','btns');const b=el('button','btn','Start the test');b.type='button';b.addEventListener('click',()=>OSx.start(x.id,ids));act.append(b);c.append(act);
-    view.append(c); if(x.study) view.append(OSx.study(x)); view.append(OSx.notes(x));
+    view.append(c);
   },
   exam(x,r){
     const bar=el('div','timerbar'); const lc=el('div'); const ck=el('span','clock',r.endAt?OSx.fmt(Math.max(0,r.endAt-Date.now())):'No timer'); ck.id='oxclock';
@@ -1664,7 +1688,7 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},sec:null,t
     const rv=el('div','card paper oxpaper'); rv.append(el('span','eyebrow','Answer review'), el('p','small','Green is the correct answer, red is a wrong pick. For written answers, compare with the model answer and tick the points you made.'));
     const sg=el('div','seg');sg.setAttribute('role','group');sg.setAttribute('aria-label','Show');
     [['all','All questions'],['missed','Missed or partial'],['written','My written answers']].forEach(([k,tx])=>{const b=el('button',null,tx);b.type='button';b.setAttribute('aria-pressed',OSx.filter===k?'true':'false');b.addEventListener('click',()=>{OSx.filter=k;show(B.view)});sg.append(b)});
-    rv.append(sg, OSx.paperBody(r,'review',OSx.filter)); view.append(rv); if(x.study) view.append(OSx.study(x)); view.append(OSx.notes(x));
+    rv.append(sg, OSx.paperBody(r,'review',OSx.filter)); view.append(rv);
   }
 };
 BOOK_TABS.push(OSx);
