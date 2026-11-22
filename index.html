@@ -1561,6 +1561,20 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},sec:null,t
     if(r.phase==='run') return OSx.exam(x,r);
     return OSx.results(x,r);
   },
+  study(x){
+    if(!document.getElementById('oxstudycss')){const st=document.createElement('style');st.id='oxstudycss';st.textContent=`.oxstudy .xbody h3{font-size:1rem;margin:16px 0 4px}.oxstudy .xbody p{margin:4px 0 8px;line-height:1.55}.oxstudy .sum{font-weight:600;margin:0 0 6px}.oxstudy .wx{border:1px solid var(--line,rgba(127,127,127,.3));border-left:4px solid var(--accent,#8ab4f8);border-radius:10px;padding:10px 14px;margin:10px 0}.oxstudy .wx ol{margin:6px 0 6px 18px;padding:0}.oxstudy .wx .ans{font-weight:600}.oxstudy .trap li{margin:2px 0}`;document.head.append(st)}
+    const S=x.study, k='s:'+x.id;
+    const d=el('details','card xsheet oxnotes oxstudy'); d.open=!OSx.notesClosed[k]; d.addEventListener('toggle',()=>{OSx.notesClosed[k]=!d.open});
+    const sm=el('summary'); const hd=el('div','xhead'); hd.append(el('span','eyebrow',(x.num&&/^Ch/.test(x.num)?x.num:'Section '+dnum(x))+' study notes · '+B.bookName),el('h2','card-title','Learn it: '+plain(x.title))); sm.append(hd,el('span','xtoggle','')); d.append(sm);
+    const body=el('div','xbody');
+    if(S.sum) body.append(rt('p','sum',S.sum));
+    (S.parts||[]).forEach(p=>{body.append(rt('h3',null,p.h)); if(p.p) body.append(rt('p',null,p.p)); if(p.li){const ul=el('ul');p.li.forEach(t=>ul.append(rt('li',null,t)));body.append(ul)}});
+    if(S.wx&&S.wx.length){body.append(el('div','flabel','Worked examples'));
+      S.wx.forEach((w,i)=>{const b=el('div','wx');b.append(rt('p',null,'<b>Example '+(i+1)+'.</b> ')); b.lastChild.innerHTML='<b>Example '+(i+1)+'.</b> '+chem(w.q);
+        const ol=el('ol');w.s.forEach(t=>ol.append(rt('li',null,t)));b.append(ol); const an=rt('p','ans',w.a); an.innerHTML='Answer: '+chem(w.a); b.append(an); body.append(b)})}
+    if(S.trap&&S.trap.length){body.append(el('div','flabel','Watch out'));const ul=el('ul','trap');S.trap.forEach(t=>ul.append(rt('li',null,t)));body.append(ul)}
+    d.append(body); return d;
+  },
   notes(x){
     const d=el('details','card xsheet oxnotes'); d.open=!OSx.notesClosed[x.id]; d.addEventListener('toggle',()=>{OSx.notesClosed[x.id]=!d.open});
     const sm=el('summary'); const hd=el('div','xhead'); hd.append(el('span','eyebrow',(x.num&&/^Ch/.test(x.num)?x.num:'Section '+dnum(x))+' notes · '+B.bookName),el('h2','card-title','Key ideas and key equations')); sm.append(hd,el('span','xtoggle','')); d.append(sm);
@@ -1571,6 +1585,7 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},sec:null,t
     if(x.url){const a=el('a','btn ghost small oslink','Read section '+dnum(x)+' on openstax.org ↗');a.href=x.url;a.target='_blank';a.rel='noopener';
       const lk=el('div','btns');lk.append(a);body.append(lk)}
     else if(x.ref){body.append(el('div','flabel','In your book'));body.append(rt('p','small',x.ref))}
+    if(x.ex&&x.ex.length){body.append(el('div','flabel','Practice in your book'));const ul2=el('ul','small');x.ex.forEach(t=>ul2.append(rt('li',null,t)));body.append(ul2)}
     d.append(body); return d;
   },
   intro(x){
@@ -1591,7 +1606,7 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},sec:null,t
     [[true,`${OSx.mins(n)}-minute timer`],[false,'No timer']].forEach(([v,t])=>{const b=el('button',null,t);b.type='button';b.setAttribute('aria-pressed',OSx.timed===v?'true':'false');b.addEventListener('click',()=>{OSx.timed=v;show(B.view)});sg.append(b)});
     c.append(sg);
     const act=el('div','btns');const b=el('button','btn','Start the test');b.type='button';b.addEventListener('click',()=>OSx.start(x.id,ids));act.append(b);c.append(act);
-    view.append(c, OSx.notes(x));
+    view.append(c); if(x.study) view.append(OSx.study(x)); view.append(OSx.notes(x));
   },
   exam(x,r){
     const bar=el('div','timerbar'); const lc=el('div'); const ck=el('span','clock',r.endAt?OSx.fmt(Math.max(0,r.endAt-Date.now())):'No timer'); ck.id='oxclock';
@@ -1649,7 +1664,7 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},sec:null,t
     const rv=el('div','card paper oxpaper'); rv.append(el('span','eyebrow','Answer review'), el('p','small','Green is the correct answer, red is a wrong pick. For written answers, compare with the model answer and tick the points you made.'));
     const sg=el('div','seg');sg.setAttribute('role','group');sg.setAttribute('aria-label','Show');
     [['all','All questions'],['missed','Missed or partial'],['written','My written answers']].forEach(([k,tx])=>{const b=el('button',null,tx);b.type='button';b.setAttribute('aria-pressed',OSx.filter===k?'true':'false');b.addEventListener('click',()=>{OSx.filter=k;show(B.view)});sg.append(b)});
-    rv.append(sg, OSx.paperBody(r,'review',OSx.filter)); view.append(rv, OSx.notes(x));
+    rv.append(sg, OSx.paperBody(r,'review',OSx.filter)); view.append(rv); if(x.study) view.append(OSx.study(x)); view.append(OSx.notes(x));
   }
 };
 BOOK_TABS.push(OSx);
