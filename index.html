@@ -747,6 +747,8 @@ function record(q,frac){
 }
 function dateKey(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function poolForLevel(){return BANK.filter(q=>!q.lab&&!q.os&&(S.level==='C'||q.lv==='B'))}
+function stationPool(){return BANK.filter(q=>!q.lab&&(!q.os||q.st)&&(S.level==='C'||q.lv==='B'))}
+function stText(t){return t.replace(/^[^()]*\(see Q\d+\)\.\s*/,'').replace(/\s*\(Q\d+–\d+\)/,'').replace(/\bQ\d+(?: \(TB\))?\.\s*/,'').replace(/ from Q\d+(?=,)/,'')}
 function gensForLevel(){return Object.keys(GEN).filter(k=>S.level==='C'||GEN[k].lv==='B')}
 
 /* ---------------- question renderer ---------------- */
@@ -758,7 +760,7 @@ function renderQ(q,o){
   const meta=el('span','qmeta'); if(q.lv==='C') meta.append(el('span','ctag nat','Nationals'));
   const p=ptsOf(q); meta.append(el('span','ctag',p+(p===1?' pt':' pts'))); if(o.label) meta.append(el('span','qnum',o.label));
   head.append(meta); card.append(head);
-  card.append(rt('p','qtext',q.q));
+  card.append(rt('p','qtext',q.st&&current!=='invites'?stText(q.q):q.q));
   if(q.tbl&&!(q.lab&&current==='lab'&&Lab.mode==='exp'&&(()=>{const L=(window.CW.LABS||[]).find(l=>l.id===q.lab);return L&&L.data&&JSON.stringify(L.data.rows)===JSON.stringify(q.tbl.rows)})())) card.append(tableEl(q.tbl));
   if(q.fig&&FIGS[q.fig]){const f=el('figure','qfig');f.innerHTML=FIGS[q.fig]();card.append(f)}
   if(q.k==='multi') card.append(el('p','subq','Select all that apply.'));
@@ -1030,7 +1032,7 @@ const Today={idx:null,
 
 /* ---------------- Stations (practice by topic) ---------------- */
 const Practice={sel:null,qtype:'all',round:null,
-  ids(t){return poolForLevel().filter(q=>(t==='all'?AREAS[P.area].topics.includes(q.t):q.t===t)&&(Practice.qtype==='all'||q.k===Practice.qtype)).map(q=>q.id)},
+  ids(t){return stationPool().filter(q=>(t==='all'?AREAS[P.area].topics.includes(q.t):q.t===t)&&(Practice.qtype==='all'||q.k===Practice.qtype)).map(q=>q.id)},
   build(t){
     let ids=shuffle(Practice.ids(t),rngFor('p'+Date.now()));
     ids.sort((a,b)=>(S.seen[a]?1:0)-(S.seen[b]?1:0));   /* questions you haven't seen come first */
@@ -1041,7 +1043,7 @@ const Practice={sel:null,qtype:'all',round:null,
   picker(pk){
     const a=AREAS[P.area], all=Practice.ids('all'), tot=barOf(all);
     pk.append(el('h2',null,a.name+' stations'));
-    const counts={all:0}; poolForLevel().filter(q=>a.topics.includes(q.t)).forEach(q=>{counts[q.k]=(counts[q.k]||0)+1;counts.all++});
+    const counts={all:0}; stationPool().filter(q=>a.topics.includes(q.t)).forEach(q=>{counts[q.k]=(counts[q.k]||0)+1;counts.all++});
     const seg=el('div','seg qseg'); seg.setAttribute('aria-label','Question type');
     [['all','All types']].concat(Object.entries(KINDS)).forEach(([k,v])=>{if(!counts[k])return;const b=el('button');b.type='button';b.setAttribute('aria-pressed',Practice.qtype===k?'true':'false');
       b.innerHTML=`${esc(v)} <span class="mono small">${counts[k]}</span>`;b.addEventListener('click',()=>{Practice.qtype=k;Practice.build(Practice.sel&&Practice.ids(Practice.sel).length?Practice.sel:'all');show('practice')});seg.append(b)});
