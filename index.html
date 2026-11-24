@@ -1650,7 +1650,7 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},pane:{},se
       const nn=el('button','btn ghost','Keep working');nn.type='button';nn.addEventListener('click',()=>{rt2.innerHTML='';rt2.append(sb)});rt2.append(y,nn)};
     sb.addEventListener('click',ask); rt2.append(sb); bar.append(lc,rt2); view.append(bar);
     const paper=el('div','card paper oxpaper'); const ph=el('div','paperhead');
-    ph.append(el('span','eyebrow',dnum(x)+' '+plain(x.title)+(r.label?' · '+r.label:'')), rt('h1','card-title',x.title),
+    ph.append(el('span','eyebrow',(B.solo?B.bookName:dnum(x)+' '+plain(x.title))+(r.label?' · '+r.label:'')), rt('h1','card-title',x.title),
       el('p','small',`${r.ids.length} questions · ${OSx.pts(r.ids)} points${r.mins?` · ${r.mins} minutes`:''}. Answer in any order.${r.mins?' The test submits itself when time runs out.':''}`));
     paper.append(ph, OSx.paperBody(r,'exam'));
     const a2=el('div','btns'); const sb2=el('button','btn','Submit test'); sb2.type='button'; sb2.addEventListener('click',()=>{window.scrollTo({top:0});ask()}); a2.append(sb2); paper.append(a2);
@@ -1682,7 +1682,7 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},pane:{},se
     if(b)b.textContent=`${OSx.r1(t.e)} of ${t.p} points`;const ti=document.getElementById('oxtiles');if(ti)ti.replaceWith(OSx.tiles(r))},
   results(x,r){
     const t=OSx.totals(r); const c=el('div','card qcard');
-    c.append(el('span','eyebrow',`${dnum(x)} ${plain(x.title)}${r.label?' · '+r.label:''} · Results · ${r.used||1} min`));
+    c.append(el('span','eyebrow',`${B.solo?B.bookName:dnum(x)+' '+plain(x.title)}${r.label?' · '+r.label:''} · Results · ${r.used||1} min`));
     const sc=el('p','score mono',(t.p?Math.round(t.e/t.p*100):0)+'%'); sc.id='oxscore'; const pts=el('p',null,`${OSx.r1(t.e)} of ${t.p} points`); pts.id='oxpts';
     c.append(sc,pts,OSx.tiles(r));
     if(t.wp) c.append(el('p','small','Written answers start at 0. Tick the key points you hit under each free-response question below; your score updates as you go.'));
@@ -1714,7 +1714,7 @@ const ZUMx=bookTab({key:'zum',label:'Zumdahl',view:'books',pk:'zumSec',timerId:'
 const INVx=bookTab({key:'inv',label:'Invitationals',view:'invites',pk:'invSec',timerId:'invTimer',short:'Invitational',bookName:'2026–27 Invitationals',solo:true,inOrder:true,ideasLabel:'Test tips',
   desc:'Full tests from this season’s invitationals (2027 nationals season), taken as timed practice tests in their original order.',
   chapters:[['inv','2027','2026–27 season']],
-  credit:'Tests are shared by team members after each invitational. No official keys were released; answers were worked out and checked, and any missing or misprinted parts are noted in the question.'});
+  credit:'Tests are shared by team members after each invitational. Answers come from the official graded key when the tournament released one; otherwise they were worked out and checked. Missing or misprinted parts are noted in the question.'});
 /* one Textbooks tab: book switch at the top of the sidebar */
 const Books={
   cur(){return BOOK_TABS.find(b=>b.key===P.book)||BOOK_TABS[0]},
