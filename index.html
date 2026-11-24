@@ -445,6 +445,7 @@ body.osmode #areaSeg, body.osmode .seg:has(#lvB) { display: none; }
       <button class="tab" role="tab" id="tab-practice" data-view="practice">Stations</button>
       <button class="tab" role="tab" id="tab-lab" data-view="lab">Lab tasks</button>
       <button class="tab" role="tab" id="tab-books" data-view="books">Textbooks <span class="tmr" id="booksTimer"></span></button>
+      <button class="tab" role="tab" id="tab-invites" data-view="invites">Invitationals <span class="tmr" id="invTimer"></span></button>
       <button class="tab" role="tab" id="tab-cards" data-view="cards">Flashcards</button>
       <button class="tab" role="tab" id="tab-review" data-view="review">Review missed <span class="count" id="missCount" hidden>0</span></button>
       <button class="tab" role="tab" id="tab-mock" data-view="mock">Mock test <span class="tmr" id="tabTimer"></span></button>
@@ -528,6 +529,14 @@ function figAxes(xl,yl){return `<path class="fx-axis" d="M50,20 L50,230 L460,230
 function mbPath(s,ymax,cls,dash){const pts=[];for(let v=0;v<=4.0001;v+=0.04){const f=(4/Math.sqrt(Math.PI))*(v*v/(s*s*s))*Math.exp(-(v*v)/(s*s));pts.push(`${(50+v/4*400).toFixed(1)},${(230-f/ymax*195).toFixed(1)}`)}return `<polyline class="${cls}" ${dash?'stroke-dasharray="7 5"':''} points="${pts.join(' ')}"/>`}
 function mbLabel(s,ymax,label){const f=(4/Math.sqrt(Math.PI))/s/Math.E;return `<text class="fx-tb" x="${(50+s/4*400+10).toFixed(0)}" y="${(230-f/ymax*195-8).toFixed(0)}">${label}</text>`}
 const FIGS={
+  eudio(){return `<svg viewBox="0 0 480 300" role="img" aria-label="Gas collection setup. A stoppered Erlenmeyer flask with vinegar and baking soda on the left has a delivery tube running into a large beaker of water on the right. The tube ends under an upside-down eudiometer tube filled with water, held by a clamp on a ring stand.">
+<path class="fx-axis" d="M60,270 L60,200 L85,150 L85,120 L105,120 L105,150 L130,200 L130,270 Z"/><rect x="82" y="108" width="26" height="14" rx="3" style="fill:var(--muted);opacity:.5"/>
+<path d="M66,262 L124,262 L124,230 L66,230 Z" style="fill:var(--accent);opacity:.18"/><text class="fx-tm" x="136" y="246" style="font-size:12px">← vinegar + NaHCO₃</text>
+<path class="fx-c1" d="M95,108 L95,70 Q95,50 130,50 L240,50 Q265,50 265,90 L265,262 Q265,272 285,272 L300,272 L300,240" style="stroke-width:3"/><text class="fx-tm" x="170" y="40" text-anchor="middle">delivery tube</text>
+<path class="fx-axis" d="M250,140 L250,280 L390,280 L390,140"/><path d="M252,180 L388,180 L388,278 L252,278 Z" style="fill:var(--accent);opacity:.15"/><text class="fx-tm" x="345" y="268" text-anchor="middle">water</text>
+<path class="fx-axis" d="M290,250 L290,40 Q300,26 310,40 L310,250"/><path d="M291,90 L309,90 L309,250 L291,250 Z" style="fill:var(--accent);opacity:.22"/><text class="fx-tm" x="318" y="66">gas collects here</text>
+<line class="fx-axis" x1="440" y1="20" x2="440" y2="285"/><line class="fx-axis" x1="310" y1="120" x2="440" y2="120"/><rect x="408" y="282" width="64" height="8" style="fill:var(--muted)"/>
+<text class="fx-tm" x="375" y="113" text-anchor="middle">clamp</text><text class="fx-tm" x="458" y="200" text-anchor="middle" transform="rotate(-90 458 200)">ring stand</text><text class="fx-tm" x="232" y="132" text-anchor="end">inverted</text><text class="fx-tm" x="232" y="148" text-anchor="end">eudiometer →</text></svg>`},
   mbT(){const y=0.9;return `<svg viewBox="0 0 480 265" role="img" aria-label="Two speed distribution curves. Curve A is tall and narrow with its peak at low speed. Curve B is shorter and wider with its peak at higher speed.">${figDefs()}${figAxes('Molecular speed','Fraction of molecules')}${mbPath(1.0,y,'fx-c1')}${mbPath(1.7,y,'fx-c2',true)}${mbLabel(1.0,y,'A')}${mbLabel(1.7,y,'B')}</svg>`},
   mbM(){const y=1.45;return `<svg viewBox="0 0 480 265" role="img" aria-label="Two speed distribution curves at the same temperature. Curve A is very tall and narrow at low speed. Curve B is low and wide, peaking at high speed.">${figDefs()}${figAxes('Molecular speed','Fraction of molecules')}${mbPath(0.6,y,'fx-c1')}${mbPath(2.2,y,'fx-c2',true)}${mbLabel(0.6,y,'A')}${mbLabel(2.2,y,'B')}</svg>`},
   profile1(){return `<svg viewBox="0 0 480 265" role="img" aria-label="Energy diagram. Reactants on a plateau, one peak, products on a lower plateau. Arrow a goes from reactants up to the peak. Arrow b goes from the reactant level down to the product level. Arrow c goes from products up to the peak.">${figDefs()}${figAxes('Reaction progress','Potential energy')}
@@ -745,7 +754,7 @@ function gensForLevel(){return Object.keys(GEN).filter(k=>S.level==='C'||GEN[k].
 function renderQ(q,o){
   const card=el('article','card qcard');
   const head=el('div','qhead');
-  head.append(el('span','eyebrow',(o.eyebrow?o.eyebrow+' · ':'')+(q.gen?'':AREAS[areaOf(q.t)].name+' · ')+TOPICS[q.t]+' · '+(q.gen?'New numbers each time':KINDS[q.k])));
+  head.append(el('span','eyebrow',(o.eyebrow?o.eyebrow+' · ':'')+(q.gen||!AREAS[areaOf(q.t)].topics.includes(q.t)?'':AREAS[areaOf(q.t)].name+' · ')+TOPICS[q.t]+' · '+(q.gen?'New numbers each time':KINDS[q.k])));
   const meta=el('span','qmeta'); if(q.lv==='C') meta.append(el('span','ctag nat','Nationals'));
   const p=ptsOf(q); meta.append(el('span','ctag',p+(p===1?' pt':' pts'))); if(o.label) meta.append(el('span','qnum',o.label));
   head.append(meta); card.append(head);
@@ -858,7 +867,7 @@ function feedback(q,resp){
   } else if(q.k==='short'){
     /* model shown above */
   } else fb.append(rt('p',null,q.x));
-  if(q.src&&SRC[q.src]) fb.append(el('div','from',(SRC[q.src].t?'Rewritten from: ':SRC[q.src].os?'Based on: ':'Question style: ')+SRC[q.src].label+(q.os?(()=>{const n=((window.CW.OS||[]).find(x=>x.id===q.os)||{}).num||q.os;return /^Ch/.test(n)?', chapter final review':', section '+n})():'')));
+  if(q.src&&SRC[q.src]) fb.append(el('div','from',(SRC[q.src].t?'Rewritten from: ':SRC[q.src].os?'Based on: ':'Question style: ')+SRC[q.src].label+(q.os?(()=>{const sx=(window.CW.OS||[]).find(x=>x.id===q.os)||{};const n=sx.num||q.os;return sx.book==='inv'?', '+q.q.split('.')[0]:/^Ch/.test(n)?', chapter final review':', section '+n})():'')));
   if(q.lab&&current!=='lab'&&window.CW.LABS){const L=window.CW.LABS.find(l=>l.id===q.lab);if(L)fb.append(el('div','from','Uses the experiment “'+plain(L.title)+'” (Lab tasks → Experiments).'))}
   return fb;
 }
@@ -901,12 +910,12 @@ document.querySelectorAll('#areaSeg button').forEach(b=>b.addEventListener('clic
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>show(t.dataset.view)));
 function updateMiss(){const n=S.missed.filter(id=>BYID[id]&&lvOk(BYID[id])).length;const e=document.getElementById('missCount');if(e){e.hidden=!n;e.textContent=n}}
 function show(v){
-  current=v; document.body.classList.toggle('osmode',v==='books'||v==='team'); document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.view===v?'true':'false'));
+  current=v; document.body.classList.toggle('osmode',v==='books'||v==='team'||v==='invites'); document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.view===v?'true':'false'));
   updateStreak(); updateMiss();
   view.innerHTML=''; modeHead.innerHTML='';
   const full=FULL.includes(v); pickerEl.hidden=full; mainEl.classList.toggle('full',full);
-  if(!full) keepPickerScroll(pickerEl,()=>{pickerEl.innerHTML='';({practice:Practice.picker,review:Review.picker,lab:Lab.picker,books:Books.picker,team:Team.picker,cards:Cards.picker})[v](pickerEl)});
-  ({today:Today.render,practice:Practice.render,review:Review.render,lab:Lab.render,books:Books.render,team:Team.render,mock:Mock.render,progress:Progress.render,cards:Cards.render})[v]();
+  if(!full) keepPickerScroll(pickerEl,()=>{pickerEl.innerHTML='';({practice:Practice.picker,review:Review.picker,lab:Lab.picker,books:Books.picker,invites:INVx.picker,team:Team.picker,cards:Cards.picker})[v](pickerEl)});
+  ({today:Today.render,practice:Practice.render,review:Review.render,lab:Lab.render,books:Books.render,invites:INVx.render,team:Team.render,mock:Mock.render,progress:Progress.render,cards:Cards.render})[v]();
 }
 function updateStreak(){
   let n=0; const d=new Date();
@@ -1461,7 +1470,7 @@ const Lab={mode:'exp',exp:null,R:null,closed:{},type:'mix',cur:null,resp:null,ea
 /* ---------------- OpenStax section tests (same layout as the A&P app) ---------------- */
 const ALLSEC=window.CW.OS||[]; const OSBY={}; ALLSEC.forEach(x=>{OSBY[x.id]=x});
 const dnum=x=>x.num||x.id;
-const BOOK_TABS=[];
+const BOOK_TABS=[], OX_ALL=[];
 const OX_TYPES=[['mc','Multiple choice'],['multi','Select all that apply'],['tf','True or false'],['fill','One-word answer'],['num','Calculations'],['short','Free response']];
 function bookTab(B){
 const OSEC=ALLSEC.filter(x=>(x.book||'os')===B.key), OSCH=B.chapters, MY=new Set(OSEC.map(x=>x.id));
@@ -1471,9 +1480,9 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},pane:{},se
   pick(id){OSx.sec=id;P[B.pk]=id;saveP();OSx.filter='all';OSx.armed=null},
   rec(id){const r=OSx.st()[id];return r&&r.phase!=='reset'?r:null},
   allIds(id){return BANK.filter(q=>q.os===id).map(q=>q.id)},
-  ordered(ids,seed){const r=rngFor(seed);const by={};ids.forEach(i=>{const k=BYID[i].k;(by[k]=by[k]||[]).push(i)});return OX_TYPES.flatMap(([k])=>shuffle((by[k]||[]).slice(),r))},
+  ordered(ids,seed){if(B.inOrder)return ids.slice().sort((a,b)=>(+a.split('-').pop())-(+b.split('-').pop()));const r=rngFor(seed);const by={};ids.forEach(i=>{const k=BYID[i].k;(by[k]=by[k]||[]).push(i)});return OX_TYPES.flatMap(([k])=>shuffle((by[k]||[]).slice(),r))},
   pts(ids){return ids.reduce((a,i)=>a+ptsOf(BYID[i]),0)},
-  mins(n){return Math.max(10,Math.ceil(n*1.5/5)*5)},
+  mins(n,x){return x&&x.mins?x.mins:Math.max(10,Math.ceil(n*1.5/5)*5)},
   answered(r){return r.resp.filter(x=>x!=null&&x!==''&&!(Array.isArray(x)&&!x.length)&&!(x&&typeof x==='object'&&!Array.isArray(x)&&!String(x.text||'').trim())).length},
   isAns(x){return x!=null&&x!==''&&!(Array.isArray(x)&&!x.length)&&!(x&&typeof x==='object'&&!Array.isArray(x)&&!String(x.text||'').trim())},
   /* scores are frozen at submit so an app update can never change a finished test */
@@ -1486,7 +1495,7 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},pane:{},se
   migrate(){let n=0;Object.entries(OSx.st()).forEach(([k,r])=>{if(MY.has(k)&&r&&r.phase==='done'&&!r.g){OSx.freeze(r);n++}});if(n)saveLocal()},
   missedOf(r){return r.ids.filter((id,i)=>OSx.fr(r,i)<1)},
   start(id,ids,label){
-    const n=ids.length, m=OSx.mins(n), now=Date.now();
+    const n=ids.length, m=OSx.mins(n,OSBY[id]), now=Date.now();
     OSx.st()[id]={phase:'run',ids:OSx.ordered(ids,'ox'+id+now),resp:ids.map(()=>null),startAt:now,endAt:OSx.timed?now+m*60000:0,mins:OSx.timed?m:0,label:label||'',at:now};
     OSx.pane[id]='test'; OSx.pick(id); OSx.armed=null; save(); OSx.ensureTick(); show(B.view); window.scrollTo({top:0});
   },
@@ -1513,7 +1522,7 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},pane:{},se
     const run=OSx.running(); const tt=document.getElementById(B.timerId);
     run.forEach(([id,r])=>{if(Date.now()>=r.endAt) OSx.submit(id)});
     const cur=OSx.rec(OSx.sec), live=cur&&cur.phase==='run'&&cur.endAt?cur:(OSx.running()[0]||[])[1];
-    if(tt){if(live) tt.textContent=OSx.fmt(Math.max(0,live.endAt-Date.now())); else if(!BOOK_TABS.some(b=>b!==OSx&&b.running().length)) tt.textContent='';}
+    if(tt){if(live) tt.textContent=OSx.fmt(Math.max(0,live.endAt-Date.now())); else if(!OX_ALL.some(b=>b!==OSx&&b.timerId===B.timerId&&b.running().length)) tt.textContent='';}
     const c=document.getElementById('oxclock'); if(c&&cur&&cur.phase==='run'){if(cur.endAt){const left=Math.max(0,cur.endAt-Date.now());c.textContent=OSx.fmt(left);c.classList.toggle('low',left<3*60000)}else c.textContent='No timer'}
   },
   status(id){const r=OSx.rec(id),n=OSx.allIds(id).length;
@@ -1533,11 +1542,11 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},pane:{},se
       const list=OSEC.filter(x=>x.area===area); if(!list.length) return;
       const d=el('details','oxch'); d.open=OSx.open[area]!=null?OSx.open[area]:area===curArea;
       d.addEventListener('toggle',()=>{OSx.open[area]=d.open});
-      const sm=el('summary'); sm.append(el('span','oxchn',`Chapter ${num} · ${name}`),el('span','oxchc',`${list.length} quizzes`)); d.append(sm);
+      const sm=el('summary'); sm.append(el('span','oxchn',B.solo?name:`Chapter ${num} · ${name}`),el('span','oxchc',`${list.length} ${B.solo?(list.length===1?'test':'tests'):'quizzes'}`)); d.append(sm);
       const pl=el('div','plist');
       list.forEach(x=>{const ids=OSx.allIds(x.id), s=OSx.status(x.id);
         const b=el('button','pitem'); b.type='button'; b.setAttribute('aria-current',OSx.sec===x.id?'true':'false');
-        b.innerHTML=`<span class="pt">${esc(dnum(x)+' '+plain(x.title))}</span><span class="pm"><span>${ids.length} Qs · ${OSx.pts(ids)} pts</span><span class="${s.cls==='done'?'mono':''}">${esc(!s.cls&&x.study&&OSx.isRead(x.id)?'Notes read ✓':s.txt)}</span></span><div class="bar" aria-hidden="true"><i class="${s.cls==='run'?'p':'g'}" style="width:${s.pct.toFixed(1)}%"></i></div>`;
+        b.innerHTML=`<span class="pt">${esc(B.solo?plain(x.title):dnum(x)+' '+plain(x.title))}</span><span class="pm"><span>${ids.length} Qs · ${OSx.pts(ids)} pts</span><span class="${s.cls==='done'?'mono':''}">${esc(!s.cls&&x.study&&OSx.isRead(x.id)?'Notes read ✓':s.txt)}</span></span><div class="bar" aria-hidden="true"><i class="${s.cls==='run'?'p':'g'}" style="width:${s.pct.toFixed(1)}%"></i></div>`;
         b.addEventListener('click',()=>{OSx.pick(x.id);show(B.view);window.scrollTo({top:0})}); pl.append(b)});
       d.append(pl); pk.append(d);
     });
@@ -1562,7 +1571,7 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},pane:{},se
     OSx.ensureSec();
     const x=OSBY[OSx.sec], r=OSx.rec(x.id);
     const panes=x.study?['notes','ideas','test']:['ideas','test'];
-    let pane=OSx.pane[x.id]; if(!panes.includes(pane)) pane=r?'test':(x.study&&!OSx.isRead(x.id)?'notes':x.study?'test':'ideas');
+    let pane=OSx.pane[x.id]; if(!panes.includes(pane)) pane=(r||B.solo)?'test':(x.study&&!OSx.isRead(x.id)?'notes':x.study?'test':'ideas');
     view.append(OSx.head(x,r,pane,panes));
     if(pane==='notes') return view.append(OSx.study(x));
     if(pane==='ideas') return view.append(OSx.notes(x));
@@ -1574,8 +1583,8 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},pane:{},se
   head(x,r,pane,panes){
     if(!document.getElementById('oxstepcss')){const st=document.createElement('style');st.id='oxstepcss';st.textContent=`.gsteps{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.gstep{flex:1 1 160px;display:flex;justify-content:space-between;gap:8px;align-items:baseline;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:9px 12px;font-weight:600;cursor:pointer;font:inherit;font-weight:600}.gstep[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}.oxhead .card-title{margin:2px 0 0}.oxdone{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:18px}`;document.head.append(st)}
     const c=el('div','card oxhead'); const s=OSx.status(x.id);
-    c.append(el('span','eyebrow',(/^Ch/.test(dnum(x))?dnum(x)+' · Final review':'Section '+dnum(x))+' · '+B.bookName), rt('h2','card-title',x.title));
-    const lab={notes:['Study notes',OSx.isRead(x.id)?'✓ read':'not read'],ideas:['Key ideas',x.ideas.length+' ideas · '+x.eqs.length+' eqs'],test:['Practice test',r&&r.phase==='run'?'⏱ in progress':s.txt]};
+    c.append(el('span','eyebrow',B.solo?B.bookName:(/^Ch/.test(dnum(x))?dnum(x)+' · Final review':'Section '+dnum(x))+' · '+B.bookName), rt('h2','card-title',x.title));
+    const lab={notes:['Study notes',OSx.isRead(x.id)?'✓ read':'not read'],ideas:[B.ideasLabel||'Key ideas',B.solo?'tips · '+x.eqs.length+' eqs':x.ideas.length+' ideas · '+x.eqs.length+' eqs'],test:['Practice test',r&&r.phase==='run'?'⏱ in progress':s.txt]};
     const sw=el('div','gsteps'); sw.setAttribute('role','tablist');
     panes.forEach((k,i)=>{const b=el('button','gstep');b.type='button';b.setAttribute('role','tab');b.setAttribute('aria-pressed',pane===k?'true':'false');b.setAttribute('aria-selected',pane===k?'true':'false');
       b.append(el('span',null,(i+1)+'. '+lab[k][0]),el('span','mono small',lab[k][1]));b.addEventListener('click',()=>OSx.go(x.id,k));sw.append(b)});
@@ -1599,7 +1608,7 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},pane:{},se
   },
   notes(x){
     const d=el('div','card xsheet oxnotes');
-    const body=el('div','xbody'); body.append(el('span','eyebrow','Key ideas and key equations'));
+    const body=el('div','xbody'); body.append(el('span','eyebrow',B.solo?'Test tips and key equations':'Key ideas and key equations'));
     body.append(el('div','flabel','Key ideas'));const ul=el('ul');x.ideas.forEach(t=>ul.append(rt('li',null,t)));body.append(ul);
     body.append(el('div','flabel','Key equations'));
     const eq=el('div','oseqs');x.eqs.forEach(([a,f])=>{const rr=el('div','oseq');rr.append(el('span','oslab',a),rt('div','formula',f));eq.append(rr)});body.append(eq);
@@ -1616,8 +1625,8 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},pane:{},se
     const ids=OSx.allIds(x.id), qs=ids.map(i=>BYID[i]), n=ids.length, p=OSx.pts(ids);
     const types=OX_TYPES.filter(([k])=>qs.some(q=>q.k===k)).map(([,t])=>t);
     const auto=qs.filter(q=>q.k!=='short'), wr=qs.filter(q=>q.k==='short'), nc=qs.filter(q=>q.k==='num').length;
-    const c=el('div','card qcard oxintro'); c.append(el('span','eyebrow',B.short+' · section '+dnum(x)), el('h2','card-title','Practice test'));
-    c.append(el('p',null,(/^Ch/.test(dnum(x))?'Mixed review of the whole chapter, ':'Practice quiz for this '+B.short+' section, ')+'written Science Olympiad style. '+(x.study?'Read the Study notes and Key ideas tabs first.':'Review the Key ideas tab first.')));
+    const c=el('div','card qcard oxintro'); c.append(el('span','eyebrow',B.solo?B.short:B.short+' · section '+dnum(x)), el('h2','card-title','Practice test'));
+    c.append(x.intro?rt('p',null,x.intro):el('p',null,(/^Ch/.test(dnum(x))?'Mixed review of the whole chapter, ':'Practice quiz for this '+B.short+' section, ')+'written Science Olympiad style. '+(x.study?'Read the Study notes and Key ideas tabs first.':'Review the Key ideas tab first.')));
     const ul=el('ul');
     const li1=el('li');li1.innerHTML=`<b>${n} questions, ${p} points</b> · ${esc(types.join(', '))}`;ul.append(li1);
     ul.append(el('li',null,`${auto.length} are graded for you (multiple choice, select-all, true/false, one-word and calculations). Select-all questions give partial credit.`));
@@ -1627,7 +1636,7 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},pane:{},se
     c.append(ul);
     c.append(el('div','flabel','Timer'));
     const sg=el('div','seg');sg.setAttribute('role','group');sg.setAttribute('aria-label','Timer');
-    [[true,`${OSx.mins(n)}-minute timer`],[false,'No timer']].forEach(([v,t])=>{const b=el('button',null,t);b.type='button';b.setAttribute('aria-pressed',OSx.timed===v?'true':'false');b.addEventListener('click',()=>{OSx.timed=v;show(B.view)});sg.append(b)});
+    [[true,`${OSx.mins(n,x)}-minute timer`],[false,'No timer']].forEach(([v,t])=>{const b=el('button',null,t);b.type='button';b.setAttribute('aria-pressed',OSx.timed===v?'true':'false');b.addEventListener('click',()=>{OSx.timed=v;show(B.view)});sg.append(b)});
     c.append(sg);
     const act=el('div','btns');const b=el('button','btn','Start the test');b.type='button';b.addEventListener('click',()=>OSx.start(x.id,ids));act.append(b);c.append(act);
     view.append(c);
@@ -1691,7 +1700,7 @@ const OSx={key:B.key,label:B.label,bookName:B.bookName,notesClosed:{},pane:{},se
     rv.append(sg, OSx.paperBody(r,'review',OSx.filter)); view.append(rv);
   }
 };
-BOOK_TABS.push(OSx);
+OSx.timerId=B.timerId; OX_ALL.push(OSx); if(!B.solo) BOOK_TABS.push(OSx);
 return OSx;
 }
 const OSx=bookTab({key:'os',label:'OpenStax',view:'books',pk:'oxSec',timerId:'booksTimer',short:'OpenStax',bookName:'OpenStax Chemistry 2e',
@@ -1702,6 +1711,10 @@ const ZUMx=bookTab({key:'zum',label:'Zumdahl',view:'books',pk:'zumSec',timerId:'
   desc:'Quizzes for each section of the Zumdahl & Zumdahl Chemistry (8th ed.) chapters on gases and chemical kinetics, plus a final review for each chapter.',
   chapters:[['gas','5','Gases'],['kin','12','Chemical Kinetics']],
   credit:'Section titles follow Zumdahl &amp; Zumdahl, <i>Chemistry</i>, 8th ed. (Cengage, 2010). The notes and questions are written for this app; no text from the book is reproduced. Final-review questions are modeled on the book’s end-of-chapter exercises with new wording and numbers.'});
+const INVx=bookTab({key:'inv',label:'Invitationals',view:'invites',pk:'invSec',timerId:'invTimer',short:'Invitational',bookName:'2026–27 Invitationals',solo:true,inOrder:true,ideasLabel:'Test tips',
+  desc:'Full tests from this season’s invitationals (2027 nationals season), taken as timed practice tests in their original order.',
+  chapters:[['inv','2027','2026–27 season']],
+  credit:'Tests are shared by team members after each invitational. No official keys were released; answers were worked out and checked, and any missing or misprinted parts are noted in the question.'});
 /* one Textbooks tab: book switch at the top of the sidebar */
 const Books={
   cur(){return BOOK_TABS.find(b=>b.key===P.book)||BOOK_TABS[0]},
@@ -1715,7 +1728,7 @@ const Books={
   },
   render(){Books.cur().render()}
 };
-setTimeout(()=>{try{BOOK_TABS.forEach(b=>b.ensureTick())}catch(e){}},0);
+setTimeout(()=>{try{OX_ALL.forEach(b=>b.ensureTick())}catch(e){}},0);
 
 /* ---------------- Team (captain only), same idea as the A&P and Food Science apps ----------------
    Needs progress sync on and a captain key set in the Google script. The key is kept on this device only. */
